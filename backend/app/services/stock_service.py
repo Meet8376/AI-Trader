@@ -1,7 +1,9 @@
 import random
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
+import yfinance as yf
 from app.models.schemas import StockQuote
 
 logger = logging.getLogger(__name__)
@@ -79,6 +81,169 @@ STOCKS_DB = {
     "ZOMATO": {"name": "Zomato Limited", "price": 265.40, "base": 258.00, "market_cap": "₹2.34 Lakh Cr", "pe": 145.0, "sector": "IT SECTOR", "exchange": "NSE/BSE"}
 }
 
+# Live market data memory caches with TTL
+_QUOTE_CACHE: Dict[str, tuple] = {}
+_CANDLE_CACHE: Dict[tuple, tuple] = {}
+QUOTE_CACHE_TTL = 60  # seconds
+CANDLE_CACHE_TTL = 120  # seconds
+
+def _format_market_cap(mcap: Any) -> str:
+    if not mcap or not isinstance(mcap, (int, float)) or mcap <= 0:
+        return "N/A"
+    if mcap >= 1e12:
+        return f"₹{mcap / 1e12:.2f} Lakh Cr"
+    elif mcap >= 1e7:
+        return f"₹{mcap / 1e7:,.0f} Cr"
+    return f"₹{mcap:,.0f}"
+
+def _fetch_yfinance_quote(ticker_symbol: str) -> Optional[StockQuote]:
+    clean_symbol = ticker_symbol.upper().replace(".NS", "").replace(".BO", "")
+    now = time.time()
+    
+    # Check quote cache
+    if clean_symbol in _QUOTE_CACHE:
+        cached_quote, ts = _QUOTE_CACHE[clean_symbol]
+        if now - ts < QUOTE_CACHE_TTL:
+            return cached_quote
+
+    # Try fetching from yfinance (.NS first, then .BO)
+    for suffix in [".NS", ".BO"]:
+        try:
+            yf_ticker = f"{clean_symbol}{suffix}"
+            tkr = yf.Ticker(yf_ticker)
+            fast_info = tkr.fast_info
+            
+            last_price = getattr(fast_info, 'last_price', None)
+            if not last_price or last_price <= 0:
+                hist = tkr.history(period="5d")
+                if not hist.empty:
+                    last_price = float(hist['Close'].iloc[-1])
+            
+            if not last_price or last_price <= 0:
+                continue
+
+            last_price = round(float(last_price), 2)
+            prev_close = getattr(fast_info, 'previous_close', None)
+            if not prev_close or prev_close <= 0:
+                hist = tkr.history(period="5d")
+                if len(hist) >= 2:
+                    prev_close = float(hist['Close'].iloc[-2])
+                else:
+                    prev_close = last_price
+
+            prev_close = round(float(prev_close), 2)
+            change = round(last_price - prev_close, 2)
+            change_percent = round((change / prev_close) * 100, 2) if prev_close > 0 else 0.0
+
+            day_high = round(float(getattr(fast_info, 'day_high', last_price * 1.01)), 2)
+            day_low = round(float(getattr(fast_info, 'day_low', last_price * 0.99)), 2)
+            open_price = round(float(getattr(fast_info, 'open', prev_close)), 2)
+            vol_attr = getattr(fast_info, 'last_volume', None)
+            volume = int(vol_attr) if vol_attr and isinstance(vol_attr, (int, float)) and vol_attr > 0 else random.randint(500000, 2500000)
+            
+            mcap_val = getattr(fast_info, 'market_cap', None)
+            market_cap_str = _format_market_cap(mcap_val) if mcap_val else STOCKS_DB.get(clean_symbol, {}).get("market_cap", "₹15,000 Cr")
+            
+            pe_val = getattr(fast_info, 'pe_ratio', None)
+            pe_ratio = round(float(pe_val), 1) if pe_val and isinstance(pe_val, (int, float)) else STOCKS_DB.get(clean_symbol, {}).get("pe", 22.5)
+            
+            stock_name = STOCKS_DB.get(clean_symbol, {}).get("name", f"{clean_symbol} Ltd")
+
+            quote = StockQuote(
+                ticker=clean_symbol,
+                name=stock_name,
+                price=last_price,
+                change=change,
+                change_percent=change_percent,
+                high=day_high,
+                low=day_low,
+                open=open_price,
+                volume=volume,
+                market_cap=market_cap_str,
+                pe_ratio=pe_ratio,
+                day_range=f"₹{day_low} - ₹{day_high}"
+            )
+            
+            _QUOTE_CACHE[clean_symbol] = (quote, now)
+            if clean_symbol in STOCKS_DB:
+                STOCKS_DB[clean_symbol]["price"] = last_price
+                STOCKS_DB[clean_symbol]["base"] = prev_close
+            return quote
+
+        except Exception as e:
+            logger.warning(f"yfinance quote fetch failed for {clean_symbol}{suffix}: {e}")
+
+    return None
+
+def _fetch_yfinance_candles(ticker_symbol: str, timeframe: str = "15m", count: int = 60) -> Optional[List[Dict[str, Any]]]:
+    clean_symbol = ticker_symbol.upper().replace(".NS", "").replace(".BO", "")
+    cache_key = (clean_symbol, timeframe, count)
+    now = time.time()
+    
+    if cache_key in _CANDLE_CACHE:
+        cached_candles, ts = _CANDLE_CACHE[cache_key]
+        if now - ts < CANDLE_CACHE_TTL:
+            return cached_candles
+
+    tf_map = {
+        "1m": ("1d", "1m"),
+        "5m": ("5d", "5m"),
+        "15m": ("1mo", "15m"),
+        "1h": ("1mo", "60m"),
+        "1D": ("6mo", "1d")
+    }
+    period, interval = tf_map.get(timeframe, ("1mo", "15m"))
+    
+    for suffix in [".NS", ".BO"]:
+        try:
+            yf_ticker = f"{clean_symbol}{suffix}"
+            tkr = yf.Ticker(yf_ticker)
+            df = tkr.history(period=period, interval=interval)
+            if df.empty:
+                continue
+
+            candles = []
+            for idx, row in df.iterrows():
+                if hasattr(idx, 'tz_convert'):
+                    if idx.tzinfo is not None:
+                        idx_ist = idx.tz_convert("Asia/Kolkata")
+                    else:
+                        idx_ist = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
+                else:
+                    idx_ist = idx
+
+                if timeframe == "1D":
+                    time_str = idx_ist.strftime("%Y-%m-%d")
+                else:
+                    time_str = idx_ist.strftime("%Y-%m-%d %H:%M")
+
+                open_p = round(float(row['Open']), 2)
+                high_p = round(float(row['High']), 2)
+                low_p = round(float(row['Low']), 2)
+                close_p = round(float(row['Close']), 2)
+                volume = int(row['Volume'])
+
+                if open_p > 0 and close_p > 0:
+                    candles.append({
+                        "time": time_str,
+                        "open": open_p,
+                        "high": high_p,
+                        "low": low_p,
+                        "close": close_p,
+                        "volume": volume
+                    })
+
+            if candles:
+                trimmed_candles = candles[-count:]
+                _CANDLE_CACHE[cache_key] = (trimmed_candles, now)
+                return trimmed_candles
+
+        except Exception as e:
+            logger.warning(f"yfinance candle fetch failed for {clean_symbol}{suffix}: {e}")
+
+    return None
+
+
 class StockService:
     @staticmethod
     def get_all_stocks(sector_filter: Optional[str] = None) -> List[StockQuote]:
@@ -88,6 +253,13 @@ class StockService:
                 if data.get("sector") != sector_filter.upper():
                     continue
 
+            # Attempt live quote fetch via yfinance first
+            live_quote = _fetch_yfinance_quote(ticker)
+            if live_quote:
+                quotes.append(live_quote)
+                continue
+
+            # Fallback quote if yfinance is unreachable
             change = round(data["price"] - data["base"], 2)
             change_percent = round((change / data["base"]) * 100, 2)
             quotes.append(StockQuote(
@@ -108,32 +280,17 @@ class StockService:
 
     @staticmethod
     def get_stock_by_ticker(ticker: str) -> Optional[StockQuote]:
-        t = ticker.upper()
+        clean_ticker = ticker.upper().replace(".NS", "").replace(".BO", "")
+        
+        # 1. Try real live quote from yfinance
+        live_quote = _fetch_yfinance_quote(clean_ticker)
+        if live_quote:
+            return live_quote
 
-        if t not in STOCKS_DB:
-            try:
-                import yfinance as yf
-                yf_ticker = f"{t}.NS"
-                tkr = yf.Ticker(yf_ticker)
-                info = tkr.fast_info
-                last_price = round(float(info.last_price), 2)
-                prev_close = round(float(info.previous_close), 2)
-                if last_price and last_price > 0:
-                    STOCKS_DB[t] = {
-                        "name": f"{t} Ltd (NSE)",
-                        "price": last_price,
-                        "base": prev_close if prev_close > 0 else round(last_price * 0.99, 2),
-                        "market_cap": "₹15,000 Cr",
-                        "pe": 22.5,
-                        "sector": "INDIAN NSE/BSE",
-                        "exchange": "NSE"
-                    }
-            except Exception as e:
-                logger.info(f"yfinance lookup for {t} failed, using dynamic generator: {e}")
-
-        if t not in STOCKS_DB:
-            STOCKS_DB[t] = {
-                "name": f"{t} India Ltd",
+        # 2. Fallback to catalog or dynamic creation
+        if clean_ticker not in STOCKS_DB:
+            STOCKS_DB[clean_ticker] = {
+                "name": f"{clean_ticker} India Ltd",
                 "price": 1250.0,
                 "base": 1240.0,
                 "market_cap": "₹25,000 Cr",
@@ -142,11 +299,11 @@ class StockService:
                 "exchange": "NSE/BSE"
             }
 
-        data = STOCKS_DB[t]
+        data = STOCKS_DB[clean_ticker]
         change = round(data["price"] - data["base"], 2)
         change_percent = round((change / data["base"]) * 100, 2)
         return StockQuote(
-            ticker=t,
+            ticker=clean_ticker,
             name=data["name"],
             price=data["price"],
             change=change,
@@ -160,18 +317,23 @@ class StockService:
             day_range=f"₹{round(data['price']*0.988, 2)} - ₹{round(data['price']*1.015, 2)}"
         )
 
-
     @staticmethod
     def generate_candles(ticker: str, timeframe: str = "15m", count: int = 60) -> List[Dict[str, Any]]:
-        t = ticker.upper()
-        base_price = STOCKS_DB.get(t, {}).get("price", 1500.0)
+        clean_ticker = ticker.upper().replace(".NS", "").replace(".BO", "")
+        
+        # 1. Try real historical candles from yfinance
+        real_candles = _fetch_yfinance_candles(clean_ticker, timeframe=timeframe, count=count)
+        if real_candles and len(real_candles) >= 5:
+            return real_candles
 
-        # Convert local time to IST (UTC + 5:30)
+        # 2. Synthetic fallback generator anchored to stock current price
+        stock = StockService.get_stock_by_ticker(clean_ticker)
+        base_price = stock.price if stock else 1500.0
+
         now_utc = datetime.utcnow()
         ist_now = now_utc + timedelta(hours=5, minutes=30)
         curr_day = ist_now.date()
 
-        # If weekend, start from Friday
         if curr_day.weekday() == 5:
             curr_day -= timedelta(days=1)
         elif curr_day.weekday() == 6:
@@ -185,14 +347,12 @@ class StockService:
         elif timeframe == "1D": minutes_step = 1440
 
         if timeframe == "1D":
-            # Daily candles: 1 per trading day (Mon-Fri)
             day_cursor = curr_day
             while len(timestamps) < count:
                 if day_cursor.weekday() < 5:
                     timestamps.insert(0, day_cursor.strftime("%Y-%m-%d"))
                 day_cursor -= timedelta(days=1)
         else:
-            # Intraday candles: Strictly 09:15 AM to 03:30 PM IST
             day_cursor = curr_day
             while len(timestamps) < count:
                 if day_cursor.weekday() < 5:
@@ -232,3 +392,4 @@ class StockService:
             curr_price = close_p
 
         return candles
+
