@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { StockQuote } from '../types/stock';
-import { Search, TrendingUp, TrendingDown, Eye, Filter } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Eye, PlusCircle } from 'lucide-react';
 
 interface SidebarProps {
   stocks: StockQuote[];
@@ -10,30 +10,46 @@ interface SidebarProps {
   onSelectTicker: (ticker: string) => void;
 }
 
-const CATEGORIES = ['ALL', 'US TECH', 'INDIAN NSE', 'BANKING', 'AUTOMOTIVE'];
+const CATEGORIES = ['ALL', 'NIFTY 50', 'BANKING', 'IT SECTOR', 'AUTO & EV', 'ENERGY & INFRA', 'PHARMA & FMCG'];
 
 export const Sidebar: React.FC<SidebarProps> = ({ stocks, selectedTicker, onSelectTicker }) => {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
+
+  const cleanSearch = search.trim().toUpperCase();
 
   const filtered = stocks.filter(s => {
     const matchesSearch = s.ticker.toLowerCase().includes(search.toLowerCase()) ||
                           s.name.toLowerCase().includes(search.toLowerCase());
     
     if (activeCategory === 'ALL') return matchesSearch;
-    if (activeCategory === 'US TECH') return matchesSearch && ['NVDA', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'AMD', 'NFLX'].includes(s.ticker);
-    if (activeCategory === 'INDIAN NSE') return matchesSearch && ['RELIANCE', 'TCS', 'INFY', 'WIPRO', 'ADANIENT', 'BHARTIARTL', 'LTIM', 'ITC', 'LT', 'SUNPHARMA'].includes(s.ticker);
-    if (activeCategory === 'BANKING') return matchesSearch && ['HDFCBANK', 'ICICIBANK', 'SBIN', 'JPM', 'BAJFINANCE'].includes(s.ticker);
-    if (activeCategory === 'AUTOMOTIVE') return matchesSearch && ['TATAMOTORS', 'TSLA'].includes(s.ticker);
+    if (activeCategory === 'NIFTY 50') return matchesSearch && ['RELIANCE', 'TCS', 'HDFCBANK', 'ICICIBANK', 'BHARTIARTL', 'INFY', 'SBIN', 'ITC', 'HINDUNILVR', 'LT'].includes(s.ticker);
+    if (activeCategory === 'BANKING') return matchesSearch && ['HDFCBANK', 'ICICIBANK', 'SBIN', 'AXISBANK', 'KOTAKBANK', 'BAJFINANCE', 'BAJAJFINSV', 'INDUSINDBK', 'BANKBARODA', 'PNB'].includes(s.ticker);
+    if (activeCategory === 'IT SECTOR') return matchesSearch && ['TCS', 'INFY', 'HCLTECH', 'WIPRO', 'LTIM', 'TECHM', 'PERSISTENT', 'ZOMATO'].includes(s.ticker);
+    if (activeCategory === 'AUTO & EV') return matchesSearch && ['TATAMOTORS', 'M&M', 'MARUTI', 'BAJAJ-AUTO', 'HEROMOTOCO', 'EICHERMOT'].includes(s.ticker);
+    if (activeCategory === 'ENERGY & INFRA') return matchesSearch && ['RELIANCE', 'NTPC', 'POWERGRID', 'ONGC', 'BPCL', 'IOC', 'TATAPOWER', 'ADANIGREEN', 'ADANIENT', 'ADANIPORTS', 'LT', 'TATASTEEL', 'HINDALCO', 'JSWSTEEL', 'ULTRACEMCO', 'GRASIM'].includes(s.ticker);
+    if (activeCategory === 'PHARMA & FMCG') return matchesSearch && ['SUNPHARMA', 'DRREDDY', 'CIPLA', 'DIVISLAB', 'APOLLOHOSP', 'ITC', 'HINDUNILVR', 'TITAN', 'ASIANPAINT', 'NESTLEIND', 'BRITANNIA', 'TATACONSUM', 'DMART'].includes(s.ticker);
     return matchesSearch;
   });
 
+  const exactMatch = stocks.some(s => s.ticker.toUpperCase() === cleanSearch);
+
+  const handleAddCustomStock = () => {
+    if (cleanSearch) {
+      onSelectTicker(cleanSearch);
+      setSearch('');
+    }
+  };
+
   return (
-    <aside className="card" style={{ height: '100%' }}>
-      <div className="card-header">
+    <aside className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="card-header" style={{ justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Eye size={16} color="var(--accent-blue)" /> Watchlist ({filtered.length}/{stocks.length})
+          <Eye size={16} color="var(--accent-blue)" /> Indian Stock Watchlist ({stocks.length}+ NSE/BSE)
         </div>
+        <span style={{ fontSize: '0.68rem', background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
+          LIVE NSE / BSE
+        </span>
       </div>
 
       {/* Search Bar */}
@@ -50,9 +66,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ stocks, selectedTicker, onSele
           <Search size={14} color="var(--text-muted)" />
           <input
             type="text"
-            placeholder="Search NVDA, AAPL, RELIANCE..."
+            placeholder="Search ANY stock (e.g. SUZLON, ZOMATO, PAYTM)..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && cleanSearch && !exactMatch) {
+                handleAddCustomStock();
+              }
+            }}
             style={{
               background: 'transparent',
               border: 'none',
@@ -95,10 +116,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ stocks, selectedTicker, onSele
       </div>
 
       {/* Stock Tickers List */}
-      <div className="card-body" style={{ padding: '6px' }}>
-        {filtered.length === 0 ? (
+      <div className="card-body" style={{ padding: '6px', overflowY: 'auto', flex: 1 }}>
+        {/* TradingView / Groww style: Dynamic search button if custom ticker typed */}
+        {cleanSearch && !exactMatch && (
+          <div
+            onClick={handleAddCustomStock}
+            style={{
+              padding: '10px 12px',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: '8px',
+              cursor: 'pointer',
+              background: 'var(--accent-blue-bg)',
+              border: '1px dashed var(--accent-blue)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              color: 'var(--accent-blue)',
+              fontWeight: 600,
+              fontSize: '0.8rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <PlusCircle size={15} />
+              <span>Load "{cleanSearch}" on Chart</span>
+            </div>
+            <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>NSE / BSE</span>
+          </div>
+        )}
+
+        {filtered.length === 0 && !cleanSearch ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-            No stocks found matching "{search}"
+            No Indian stocks found. Type any stock symbol above!
           </div>
         ) : (
           filtered.map((stock) => {
@@ -126,14 +174,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ stocks, selectedTicker, onSele
                   <div style={{ fontWeight: 600, fontSize: '0.85rem', color: isSelected ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
                     {stock.ticker}
                   </div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: '110px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', maxWidth: '130px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {stock.name}
                   </div>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
                   <div className="mono" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                    {stock.ticker.match(/^(NVDA|AAPL|MSFT|GOOGL|AMZN|META|TSLA|AMD|NFLX|JPM)$/) ? '$' : '₹'}{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </div>
                   <div style={{
                     fontSize: '0.72rem',
@@ -156,3 +204,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ stocks, selectedTicker, onSele
     </aside>
   );
 };
+

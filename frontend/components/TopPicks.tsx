@@ -3,7 +3,7 @@
 import React from 'react';
 import { TopPick } from '../types/debate';
 import { TradingMode } from '../types/stock';
-import { Sparkles, ArrowUpRight, ShieldAlert, Award } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 interface TopPicksProps {
   picks: TopPick[];
@@ -17,7 +17,7 @@ export const TopPicks: React.FC<TopPicksProps> = ({ picks, mode, onSelectTicker 
       <div className="card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Sparkles size={16} color="var(--accent-gold)" />
-          AI Top Recommended Picks ({mode.toUpperCase()})
+          Indian NSE/BSE AI Top Recommended Picks ({mode.toUpperCase()})
         </div>
         <span className="badge bg-purple-badge" style={{ fontSize: '0.7rem' }}>
           ✨ Gemini Consensus Ranked
@@ -27,7 +27,7 @@ export const TopPicks: React.FC<TopPicksProps> = ({ picks, mode, onSelectTicker 
       <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
         {picks.map((pick) => {
           const isPositive = pick.change >= 0;
-          const currencySymbol = pick.ticker.match(/^(NVDA|AAPL|MSFT|GOOGL|AMZN|META|TSLA|AMD|NFLX|JPM)$/) ? '$' : '₹';
+          const currencySymbol = '₹';
 
           return (
             <div

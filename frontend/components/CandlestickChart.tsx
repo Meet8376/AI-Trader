@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi } from 'lightweight-charts';
 import { CandleData, TechnicalIndicators, StockQuote } from '../types/stock';
-import { Activity, Zap, TrendingUp, Layers } from 'lucide-react';
+import { Activity, Zap } from 'lucide-react';
 
 interface CandlestickChartProps {
   stock: StockQuote;
@@ -27,7 +27,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
-  const currencySymbol = stock.ticker.match(/^(NVDA|AAPL|MSFT|GOOGL|AMZN|META|TSLA|AMD|NFLX|JPM)$/) ? '$' : '₹';
+  const currencySymbol = '₹';
 
   useEffect(() => {
     if (!chartContainerRef.current) return;

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { AgentOpinion, DebateVerdict } from '../types/debate';
 import { TradingMode } from '../types/stock';
-import { ShieldCheck, MessageSquare, Award, ArrowUpRight, ArrowDownRight, Scale, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Award, ArrowUpRight, ArrowDownRight, Scale, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface DebatePanelProps {
   ticker: string;
@@ -23,7 +23,7 @@ export const DebatePanel: React.FC<DebatePanelProps> = ({
   onRunDebate
 }) => {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
-  const currencySymbol = ticker.match(/^(NVDA|AAPL|MSFT|GOOGL|AMZN|META|TSLA|AMD|NFLX|JPM)$/) ? '$' : '₹';
+  const currencySymbol = '₹';
 
   const toggleExpand = (agentId: string) => {
     setExpandedAgent(expandedAgent === agentId ? null : agentId);
@@ -35,7 +35,7 @@ export const DebatePanel: React.FC<DebatePanelProps> = ({
       <div className="card-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <MessageSquare size={16} color="var(--accent-purple)" />
-          AI Debate Floor (Gemini 1.5)
+          NSE/BSE AI Debate Floor
         </div>
         <span className="badge bg-purple-badge" style={{ fontSize: '0.7rem' }}>
           {mode.toUpperCase()}

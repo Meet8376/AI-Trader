@@ -11,16 +11,16 @@ import { AgentOpinion, DebateVerdict, TopPick } from '../types/debate';
 import { fetchStocks, fetchStockCandles, analyzeStock, fetchTopPicks } from '../lib/api';
 
 const MOCK_STOCKS: StockQuote[] = [
-  { ticker: 'NVDA', name: 'NVIDIA Corporation', price: 128.80, change: 4.30, change_percent: 3.45, high: 130.50, low: 124.00, open: 124.50, volume: 45000000, market_cap: '$3.16 T', pe_ratio: 68.5 },
-  { ticker: 'AAPL', name: 'Apple Inc', price: 224.50, change: 2.40, change_percent: 1.08, high: 226.00, low: 222.00, open: 222.10, volume: 32000000, market_cap: '$3.42 T', pe_ratio: 34.2 },
-  { ticker: 'MSFT', name: 'Microsoft Corporation', price: 448.20, change: 3.20, change_percent: 0.72, high: 452.00, low: 444.00, open: 445.00, volume: 21000000, market_cap: '$3.33 T', pe_ratio: 36.8 },
-  { ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.40, change_percent: 0.86, high: 3010.00, low: 2960.00, open: 2970.00, volume: 2450000, market_cap: '₹20.19 T', pe_ratio: 28.4 },
-  { ticker: 'TCS', name: 'Tata Consultancy Services', price: 4180.20, change: 30.20, change_percent: 0.73, high: 4210.00, low: 4140.00, open: 4150.00, volume: 1200000, market_cap: '₹15.12 T', pe_ratio: 33.1 },
-  { ticker: 'INFY', name: 'Infosys Limited', price: 1820.65, change: -19.35, change_percent: -1.05, high: 1845.00, low: 1810.00, open: 1840.00, volume: 3100000, market_cap: '₹7.56 T', pe_ratio: 26.8 },
-  { ticker: 'HDFCBANK', name: 'HDFC Bank Ltd', price: 1645.10, change: 15.10, change_percent: 0.93, high: 1658.00, low: 1625.00, open: 1630.00, volume: 4200000, market_cap: '₹12.52 T', pe_ratio: 18.9 },
-  { ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.80, change_percent: 1.32, high: 1220.00, low: 1190.00, open: 1195.00, volume: 2800000, market_cap: '₹8.51 T', pe_ratio: 17.4 },
-  { ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', price: 1055.30, change: 15.30, change_percent: 1.47, high: 1065.00, low: 1035.00, open: 1040.00, volume: 3800000, market_cap: '₹3.88 T', pe_ratio: 14.2 },
-  { ticker: 'TSLA', name: 'Tesla Inc', price: 218.40, change: 8.40, change_percent: 4.00, high: 222.00, low: 209.00, open: 210.00, volume: 29000000, market_cap: '$695 B', pe_ratio: 58.4 }
+  { ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.40, change_percent: 0.86, high: 3010.00, low: 2960.00, open: 2970.00, volume: 2450000, market_cap: '₹20.19 Lakh Cr', pe_ratio: 28.4 },
+  { ticker: 'TCS', name: 'Tata Consultancy Services Ltd', price: 4180.20, change: 30.20, change_percent: 0.73, high: 4210.00, low: 4140.00, open: 4150.00, volume: 1200000, market_cap: '₹15.12 Lakh Cr', pe_ratio: 33.1 },
+  { ticker: 'HDFCBANK', name: 'HDFC Bank Ltd', price: 1645.10, change: 15.10, change_percent: 0.93, high: 1658.00, low: 1625.00, open: 1630.00, volume: 4200000, market_cap: '₹12.52 Lakh Cr', pe_ratio: 18.9 },
+  { ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.80, change_percent: 1.32, high: 1220.00, low: 1190.00, open: 1195.00, volume: 2800000, market_cap: '₹8.51 Lakh Cr', pe_ratio: 17.4 },
+  { ticker: 'BHARTIARTL', name: 'Bharti Airtel Ltd', price: 1475.25, change: 15.25, change_percent: 1.04, high: 1488.00, low: 1455.00, open: 1460.00, volume: 1950000, market_cap: '₹8.72 Lakh Cr', pe_ratio: 52.1 },
+  { ticker: 'INFY', name: 'Infosys Limited', price: 1820.65, change: -19.35, change_percent: -1.05, high: 1845.00, low: 1810.00, open: 1840.00, volume: 3100000, market_cap: '₹7.56 Lakh Cr', pe_ratio: 26.8 },
+  { ticker: 'SBIN', name: 'State Bank of India', price: 845.75, change: 10.75, change_percent: 1.29, high: 855.00, low: 830.00, open: 835.00, volume: 5400000, market_cap: '₹7.55 Lakh Cr', pe_ratio: 11.8 },
+  { ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', price: 1055.30, change: 15.30, change_percent: 1.47, high: 1065.00, low: 1035.00, open: 1040.00, volume: 3800000, market_cap: '₹3.88 Lakh Cr', pe_ratio: 14.2 },
+  { ticker: 'LT', name: 'Larsen & Toubro Ltd', price: 3615.00, change: 35.00, change_percent: 0.98, high: 3640.00, low: 3570.00, open: 3580.00, volume: 1100000, market_cap: '₹4.96 Lakh Cr', pe_ratio: 34.5 },
+  { ticker: 'ITC', name: 'ITC Limited', price: 492.50, change: 4.50, change_percent: 0.92, high: 496.00, low: 486.00, open: 488.00, volume: 4800000, market_cap: '₹6.15 Lakh Cr', pe_ratio: 28.1 }
 ];
 
 export default function DashboardPage() {
@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'chart' | 'topPicks'>('chart');
   
   const [stocks, setStocks] = useState<StockQuote[]>(MOCK_STOCKS);
-  const [selectedTicker, setSelectedTicker] = useState<string>('NVDA');
+  const [selectedTicker, setSelectedTicker] = useState<string>('RELIANCE');
   const [timeframe, setTimeframe] = useState<string>('15m');
   
   const [candles, setCandles] = useState<CandleData[]>([]);
@@ -70,14 +70,42 @@ export default function DashboardPage() {
         setCandles(res.candles);
         setIndicators(res.indicators);
       } catch (e) {
-        // Fallback mock candles with realistic price action
         const activeStock = stocks.find(s => s.ticker === selectedTicker) || MOCK_STOCKS[0];
+        
+        // Generate valid IST Indian market session timestamps
         const now = new Date();
-        const mockCandles: CandleData[] = Array.from({ length: 60 }).map((_, i) => {
-          const t = new Date(now.getTime() - (60 - i) * 15 * 60000);
+        const timestamps: string[] = [];
+        let dayOffset = 0;
+        
+        while (timestamps.length < 60) {
+          const d = new Date(now.getTime() - dayOffset * 86400000);
+          const dayOfWeek = d.getDay();
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const dateStr = String(d.getDate()).padStart(2, '0');
+            
+            const daySlots: string[] = [];
+            let m = 9 * 60 + 15; // 09:15 AM IST
+            const endM = 15 * 60 + 30; // 03:30 PM IST
+            
+            while (m <= endM) {
+              const hh = String(Math.floor(m / 60)).padStart(2, '0');
+              const mm = String(m % 60).padStart(2, '0');
+              daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
+              m += 15;
+            }
+            timestamps.unshift(...daySlots);
+          }
+          dayOffset++;
+        }
+        
+        const recentSlots = timestamps.slice(-60);
+
+        const mockCandles: CandleData[] = recentSlots.map((ts, i) => {
           const base = activeStock.price * 0.95 + Math.sin(i / 6) * (activeStock.price * 0.03);
           return {
-            time: t.toISOString().slice(0, 16).replace('T', ' '),
+            time: ts,
             open: round(base),
             high: round(base + Math.random() * (activeStock.price * 0.008)),
             low: round(base - Math.random() * (activeStock.price * 0.008)),
@@ -88,7 +116,7 @@ export default function DashboardPage() {
         setCandles(mockCandles);
         setIndicators({
           rsi: 64.2,
-          macd: { macd: 2.4, signal: 1.8, histogram: 0.6 },
+          macd: { macd: 14.2, signal: 10.8, histogram: 3.4 },
           bollinger: { upper: round(activeStock.price * 1.02), middle: round(activeStock.price), lower: round(activeStock.price * 0.98) },
           ema_20: round(activeStock.price * 0.992),
           ema_50: round(activeStock.price * 0.978),
@@ -101,7 +129,7 @@ export default function DashboardPage() {
     loadCandles();
     setOpinions([]);
     setVerdict(null);
-  }, [selectedTicker, timeframe]);
+  }, [selectedTicker, timeframe, stocks]);
 
   // Handle Gemini Multi-Agent Debate execution
   const handleTriggerDebate = async () => {
@@ -117,7 +145,7 @@ export default function DashboardPage() {
       // Direct local fallback if API unreachable
       setTimeout(() => {
         const currentStock = stocks.find(s => s.ticker === selectedTicker) || MOCK_STOCKS[0];
-        const currSym = currentStock.ticker.match(/^(NVDA|AAPL|MSFT|GOOGL|AMZN|META|TSLA|AMD|NFLX|JPM)$/) ? '$' : '₹';
+        const currSym = '₹';
 
         const mockOpinions: AgentOpinion[] = [
           {
@@ -126,11 +154,11 @@ export default function DashboardPage() {
             role: 'Technical Analyst',
             avatar: '📊',
             signal: 'BUY',
-            confidence: 86,
+            confidence: 88,
             key_points: [
               `Price action holding above EMA(20) at ${currSym}${round(currentStock.price * 0.992)}.`,
-              'RSI (14) at 64.2 confirms healthy bullish momentum without overbought stretch.',
-              'VWAP anchored support providing firm intraday floor.'
+              'RSI (14) at 64.2 confirms healthy bullish momentum on NSE chart without overbought stretch.',
+              'Intraday VWAP anchored support providing firm floor.'
             ],
             technical_targets: {
               entry: currentStock.price,
@@ -138,7 +166,7 @@ export default function DashboardPage() {
               target_2: round(currentStock.price * 1.05),
               stop_loss: round(currentStock.price * 0.985)
             },
-            full_argument: `Technicals for ${selectedTicker} confirm a high-probability bullish setup.`
+            full_argument: `Technicals for ${selectedTicker} confirm a high-probability bullish setup on Indian exchanges.`
           },
           {
             agent_id: 'sentiment_analyst',
@@ -146,10 +174,10 @@ export default function DashboardPage() {
             role: 'News & Sentiment Analyst',
             avatar: '📰',
             signal: 'BUY',
-            confidence: 81,
+            confidence: 84,
             key_points: [
-              'Institutional block orders favor steady accumulation on dips.',
-              'Sector relative strength index outperforming broader market by +2.1%.'
+              'DII & FII block orders favor steady accumulation on dips.',
+              'Sector relative strength index outperforming NIFTY 50 by +2.1%.'
             ],
             full_argument: `Market sentiment and order book depth remain heavily buyer dominant.`
           },
@@ -159,7 +187,7 @@ export default function DashboardPage() {
             role: 'Bull Debater',
             avatar: '🐂',
             signal: 'BUY',
-            confidence: 90,
+            confidence: 91,
             key_points: [
               'Confluence of VWAP support, RSI momentum, and strong institutional interest.',
               `Target projection of ${currSym}${round(currentStock.price * (mode === 'intraday' ? 1.035 : 1.15))}.`
@@ -175,9 +203,9 @@ export default function DashboardPage() {
             confidence: 64,
             key_points: [
               `Overhead resistance cluster near ${currSym}${round(currentStock.price * 1.02)}.`,
-              'Trailing stop-loss recommended to guard against sudden volatility sweeps.'
+              'Trailing stop-loss recommended to guard against RBI policy rate volatility.'
             ],
-            full_argument: `Caution advised near supply zone resistance.`
+            full_argument: `Caution advised near supply zone resistance on BSE.`
           }
         ];
 
@@ -185,13 +213,13 @@ export default function DashboardPage() {
           ticker: selectedTicker,
           mode: mode,
           verdict: 'BUY',
-          confidence: 85,
+          confidence: 86,
           consensus_score: 8.8,
           target_price: round(currentStock.price * (mode === 'intraday' ? 1.035 : 1.15)),
           stop_loss: round(currentStock.price * (mode === 'intraday' ? 0.985 : 0.94)),
           horizon: mode === 'intraday' ? '1-3 Days (Intraday)' : '3-6 Months (Long-Term)',
-          summary: `The Gemini AI Trading Floor reaches consensus: BUY ${selectedTicker} at ${currSym}${currentStock.price}. Technical momentum and institutional order flow outweigh short-term bear warnings.`,
-          bull_case: 'Technical breakout supported by institutional volume.',
+          summary: `The Gemini AI Trading Floor reaches consensus: BUY ${selectedTicker} at ${currSym}${currentStock.price} on NSE/BSE. Technical momentum and institutional order flow outweigh short-term bear warnings.`,
+          bull_case: 'Technical breakout supported by institutional DII volume.',
           bear_case: 'Overhead supply near resistance zone.'
         };
 
@@ -203,7 +231,41 @@ export default function DashboardPage() {
     }
   };
 
-  const activeStock = stocks.find(s => s.ticker === selectedTicker) || stocks[0];
+  const handleSelectTicker = (ticker: string) => {
+    const formatted = ticker.toUpperCase().trim();
+    setSelectedTicker(formatted);
+    const exists = stocks.some(s => s.ticker === formatted);
+    if (!exists) {
+      const newStock: StockQuote = {
+        ticker: formatted,
+        name: `${formatted} India Ltd`,
+        price: 1450.00,
+        change: 18.50,
+        change_percent: 1.29,
+        high: 1470.00,
+        low: 1435.00,
+        open: 1440.00,
+        volume: 1850000,
+        market_cap: '₹15,000 Cr',
+        pe_ratio: 24.5
+      };
+      setStocks(prev => [newStock, ...prev]);
+    }
+  };
+
+  const activeStock = stocks.find(s => s.ticker === selectedTicker) || {
+    ticker: selectedTicker,
+    name: `${selectedTicker} India Ltd`,
+    price: 1450.00,
+    change: 18.50,
+    change_percent: 1.29,
+    high: 1470.00,
+    low: 1435.00,
+    open: 1440.00,
+    volume: 1850000,
+    market_cap: '₹15,000 Cr',
+    pe_ratio: 24.5
+  };
 
   return (
     <div className="app-container">
@@ -231,7 +293,7 @@ export default function DashboardPage() {
             cursor: 'pointer'
           }}
         >
-          📈 Live Chart & Gemini Debate Floor
+          📈 Live NSE/BSE Chart & AI Debate Floor
         </button>
         <button
           onClick={() => setActiveTab('topPicks')}
@@ -245,7 +307,7 @@ export default function DashboardPage() {
             cursor: 'pointer'
           }}
         >
-          ✨ AI Top Recommendations ({topPicks.length > 0 ? topPicks.length : 5})
+          ✨ Indian AI Top Recommendations ({topPicks.length > 0 ? topPicks.length : 5})
         </button>
       </div>
 
@@ -256,7 +318,7 @@ export default function DashboardPage() {
           <Sidebar
             stocks={stocks}
             selectedTicker={selectedTicker}
-            onSelectTicker={setSelectedTicker}
+            onSelectTicker={handleSelectTicker}
           />
 
           {/* Middle Main: Candlestick Chart */}
@@ -284,15 +346,15 @@ export default function DashboardPage() {
         <main style={{ padding: '16px', height: 'calc(100vh - 108px)' }}>
           <TopPicks
             picks={topPicks.length > 0 ? topPicks : [
-              { rank: 1, ticker: 'NVDA', name: 'NVIDIA Corporation', price: 128.80, change: 4.3, change_percent: 3.45, consensus_score: 9.6, signal: 'STRONG BUY', rationale: 'Intraday VWAP breakout with high institutional order flow.', target_price: 135.00, stop_loss: 124.00 },
-              { rank: 2, ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.4, change_percent: 0.86, consensus_score: 9.4, signal: 'STRONG BUY', rationale: 'Strong energy/telecom earnings tailwind and clean EMA cross.', target_price: 3080.00, stop_loss: 2940.00 },
-              { rank: 3, ticker: 'TCS', name: 'Tata Consultancy Services', price: 4180.20, change: 30.2, change_percent: 0.73, consensus_score: 9.1, signal: 'BUY', rationale: 'IT sector momentum and high relative strength.', target_price: 4300.00, stop_loss: 4120.00 },
-              { rank: 4, ticker: 'AAPL', name: 'Apple Inc', price: 224.50, change: 2.4, change_percent: 1.08, consensus_score: 8.9, signal: 'BUY', rationale: 'Apple Intelligence momentum driving buy volume.', target_price: 235.00, stop_loss: 220.00 },
-              { rank: 5, ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.8, change_percent: 1.32, consensus_score: 8.7, signal: 'BUY', rationale: 'Banking sector rally lead with strong balance sheet.', target_price: 1250.00, stop_loss: 1190.00 },
+              { rank: 1, ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.4, change_percent: 0.86, consensus_score: 9.6, signal: 'STRONG BUY', rationale: 'Intraday VWAP breakout with high DII order flow on NSE.', target_price: 3080.00, stop_loss: 2940.00 },
+              { rank: 2, ticker: 'TCS', name: 'Tata Consultancy Services Ltd', price: 4180.20, change: 30.2, change_percent: 0.73, consensus_score: 9.4, signal: 'STRONG BUY', rationale: 'Strong IT sector momentum and bullish EMA crossover.', target_price: 4320.00, stop_loss: 4120.00 },
+              { rank: 3, ticker: 'HDFCBANK', name: 'HDFC Bank Ltd', price: 1645.10, change: 15.1, change_percent: 0.93, consensus_score: 9.2, signal: 'BUY', rationale: 'Banking rally leader with strong deposit growth.', target_price: 1710.00, stop_loss: 1620.00 },
+              { rank: 4, ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', price: 1055.30, change: 15.3, change_percent: 1.47, consensus_score: 9.0, signal: 'BUY', rationale: 'JLR margins expansion and EV market leadership in India.', target_price: 1110.00, stop_loss: 1030.00 },
+              { rank: 5, ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.8, change_percent: 1.32, consensus_score: 8.8, signal: 'BUY', rationale: 'NIFTY Bank breakout with strong credit growth metrics.', target_price: 1260.00, stop_loss: 1190.00 },
             ]}
             mode={mode}
             onSelectTicker={(ticker) => {
-              setSelectedTicker(ticker);
+              handleSelectTicker(ticker);
               setActiveTab('chart');
             }}
           />
@@ -300,6 +362,7 @@ export default function DashboardPage() {
       )}
     </div>
   );
+
 }
 
 function round(val: number): number {
