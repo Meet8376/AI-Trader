@@ -78,7 +78,7 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
       high: round(p + 8.5),
       low: round(p - 8.5),
       close: round(p + 3.2),
-      volume: Math.floor(Math.random() * 180000 + 30000)
+      volume: Math.floor(100000 + Math.abs(Math.sin(i)) * 150000)
     };
   });
 

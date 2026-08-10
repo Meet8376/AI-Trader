@@ -103,14 +103,15 @@ export default function DashboardPage() {
         const recentSlots = timestamps.slice(-60);
 
         const mockCandles: CandleData[] = recentSlots.map((ts, i) => {
-          const base = activeStock.price * 0.95 + Math.sin(i / 6) * (activeStock.price * 0.03);
+          const wave = Math.sin((i + selectedTicker.length) / 5) * 0.015;
+          const base = activeStock.price * (0.97 + wave);
           return {
             time: ts,
             open: round(base),
-            high: round(base + Math.random() * (activeStock.price * 0.008)),
-            low: round(base - Math.random() * (activeStock.price * 0.008)),
-            close: round(base + (Math.random() - 0.46) * (activeStock.price * 0.01)),
-            volume: Math.floor(Math.random() * 120000 + 20000)
+            high: round(base * 1.004),
+            low: round(base * 0.996),
+            close: round(base * 1.001),
+            volume: Math.floor(100000 + Math.abs(Math.sin(i)) * 150000)
           };
         });
         setCandles(mockCandles);

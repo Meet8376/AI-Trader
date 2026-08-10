@@ -1,4 +1,4 @@
-import random
+import math
 import logging
 import time
 from datetime import datetime, timedelta
@@ -84,8 +84,8 @@ STOCKS_DB = {
 # Live market data memory caches with TTL
 _QUOTE_CACHE: Dict[str, tuple] = {}
 _CANDLE_CACHE: Dict[tuple, tuple] = {}
-QUOTE_CACHE_TTL = 60  # seconds
-CANDLE_CACHE_TTL = 120  # seconds
+QUOTE_CACHE_TTL = 120  # seconds
+CANDLE_CACHE_TTL = 300  # seconds
 
 def _format_market_cap(mcap: Any) -> str:
     if not mcap or not isinstance(mcap, (int, float)) or mcap <= 0:
@@ -111,36 +111,26 @@ def _fetch_yfinance_quote(ticker_symbol: str) -> Optional[StockQuote]:
         try:
             yf_ticker = f"{clean_symbol}{suffix}"
             tkr = yf.Ticker(yf_ticker)
-            fast_info = tkr.fast_info
             
-            last_price = getattr(fast_info, 'last_price', None)
-            if not last_price or last_price <= 0:
-                hist = tkr.history(period="5d")
-                if not hist.empty:
-                    last_price = float(hist['Close'].iloc[-1])
-            
-            if not last_price or last_price <= 0:
+            # Fetch recent 5-day history for accurate daily close and prev_close
+            hist = tkr.history(period="5d", interval="1d")
+            if hist.empty:
                 continue
 
-            last_price = round(float(last_price), 2)
-            prev_close = getattr(fast_info, 'previous_close', None)
-            if not prev_close or prev_close <= 0:
-                hist = tkr.history(period="5d")
-                if len(hist) >= 2:
-                    prev_close = float(hist['Close'].iloc[-2])
-                else:
-                    prev_close = last_price
+            last_price = round(float(hist['Close'].iloc[-1]), 2)
+            prev_close = round(float(hist['Close'].iloc[-2]), 2) if len(hist) >= 2 else last_price
+            open_price = round(float(hist['Open'].iloc[-1]), 2)
+            day_high = round(float(hist['High'].iloc[-1]), 2)
+            day_low = round(float(hist['Low'].iloc[-1]), 2)
+            volume = int(hist['Volume'].iloc[-1]) if hist['Volume'].iloc[-1] > 0 else 1000000
 
-            prev_close = round(float(prev_close), 2)
+            if last_price <= 0:
+                continue
+
             change = round(last_price - prev_close, 2)
             change_percent = round((change / prev_close) * 100, 2) if prev_close > 0 else 0.0
 
-            day_high = round(float(getattr(fast_info, 'day_high', last_price * 1.01)), 2)
-            day_low = round(float(getattr(fast_info, 'day_low', last_price * 0.99)), 2)
-            open_price = round(float(getattr(fast_info, 'open', prev_close)), 2)
-            vol_attr = getattr(fast_info, 'last_volume', None)
-            volume = int(vol_attr) if vol_attr and isinstance(vol_attr, (int, float)) and vol_attr > 0 else random.randint(500000, 2500000)
-            
+            fast_info = tkr.fast_info
             mcap_val = getattr(fast_info, 'market_cap', None)
             market_cap_str = _format_market_cap(mcap_val) if mcap_val else STOCKS_DB.get(clean_symbol, {}).get("market_cap", "₹15,000 Cr")
             
@@ -186,13 +176,13 @@ def _fetch_yfinance_candles(ticker_symbol: str, timeframe: str = "15m", count: i
             return cached_candles
 
     tf_map = {
-        "1m": ("1d", "1m"),
+        "1m": ("5d", "1m"),
         "5m": ("5d", "5m"),
-        "15m": ("1mo", "15m"),
+        "15m": ("5d", "15m"),
         "1h": ("1mo", "60m"),
         "1D": ("6mo", "1d")
     }
-    period, interval = tf_map.get(timeframe, ("1mo", "15m"))
+    period, interval = tf_map.get(timeframe, ("5d", "15m"))
     
     for suffix in [".NS", ".BO"]:
         try:
@@ -271,7 +261,7 @@ class StockService:
                 high=round(data["price"] * 1.015, 2),
                 low=round(data["price"] * 0.988, 2),
                 open=round(data["base"] * 1.002, 2),
-                volume=random.randint(500000, 4500000),
+                volume=1500000,
                 market_cap=data["market_cap"],
                 pe_ratio=data["pe"],
                 day_range=f"₹{round(data['price']*0.988, 2)} - ₹{round(data['price']*1.015, 2)}"
@@ -311,7 +301,7 @@ class StockService:
             high=round(data["price"] * 1.015, 2),
             low=round(data["price"] * 0.988, 2),
             open=round(data["base"] * 1.002, 2),
-            volume=random.randint(500000, 4500000),
+            volume=1500000,
             market_cap=data["market_cap"],
             pe_ratio=data["pe"],
             day_range=f"₹{round(data['price']*0.988, 2)} - ₹{round(data['price']*1.015, 2)}"
@@ -326,7 +316,7 @@ class StockService:
         if real_candles and len(real_candles) >= 5:
             return real_candles
 
-        # 2. Synthetic fallback generator anchored to stock current price
+        # 2. Deterministic fallback generator anchored to stock current price (NO random jumps on reload!)
         stock = StockService.get_stock_by_ticker(clean_ticker)
         base_price = stock.price if stock else 1500.0
 
@@ -370,16 +360,18 @@ class StockService:
             
             timestamps = timestamps[-count:]
 
+        # Seed pseudo-randomness deterministically from ticker name so it's 100% stable on reload!
+        ticker_seed = sum(ord(c) for c in clean_ticker)
         candles = []
-        curr_price = base_price * 0.975
+        curr_price = base_price * 0.98
 
-        for ts in timestamps:
-            change_pct = (random.random() - 0.47) * 0.01
+        for i, ts in enumerate(timestamps):
+            wave = math.sin((i + ticker_seed) / 4.0) * 0.005 + math.cos((i * 2 + ticker_seed) / 7.0) * 0.003
             open_p = curr_price
-            close_p = open_p * (1 + change_pct)
-            high_p = max(open_p, close_p) * (1 + random.random() * 0.004)
-            low_p = min(open_p, close_p) * (1 - random.random() * 0.004)
-            vol = random.randint(15000, 350000)
+            close_p = open_p * (1.0 + wave)
+            high_p = max(open_p, close_p) * 1.003
+            low_p = min(open_p, close_p) * 0.997
+            vol = int(100000 + abs(math.sin(i + ticker_seed)) * 200000)
 
             candles.append({
                 "time": ts,
@@ -392,4 +384,5 @@ class StockService:
             curr_price = close_p
 
         return candles
+
 
