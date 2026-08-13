@@ -163,7 +163,7 @@ export default function MarketOverviewHome() {
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--bg-tertiary)',
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center'
                   }}
                 >
@@ -222,7 +222,7 @@ export default function MarketOverviewHome() {
                     borderRadius: 'var(--radius-sm)',
                     background: 'var(--bg-tertiary)',
                     display: 'flex',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     alignItems: 'center'
                   }}
                 >
