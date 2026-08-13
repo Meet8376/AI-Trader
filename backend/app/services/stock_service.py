@@ -339,7 +339,13 @@ class StockService:
     def generate_candles(ticker: str, timeframe: str = "15m", count: int = 60) -> List[Dict[str, Any]]:
         clean_ticker = ticker.upper().replace(".NS", "").replace(".BO", "")
         
-        # 1. Try real historical candles from yfinance
+        # 1. Try Angel One SmartAPI candles if connected
+        if angel_one_service.is_connected:
+            ao_candles = angel_one_service.get_historical_candles(clean_ticker, timeframe=timeframe, count=count)
+            if ao_candles and len(ao_candles) >= 5:
+                return ao_candles
+
+        # 2. Try real historical candles from yfinance
         real_candles = _fetch_yfinance_candles(clean_ticker, timeframe=timeframe, count=count)
         if real_candles and len(real_candles) >= 5:
             return real_candles
@@ -392,47 +398,46 @@ class StockService:
         ticker_seed = sum(ord(c) * (idx + 1) for idx, c in enumerate(clean_ticker))
         count_n = len(timestamps)
         
-        # Generate multi-harmonic market noise
-        noises = []
+        # Realistic financial random walk with momentum & volatility (No Sine Waves!)
+        returns = []
+        prev_r = 0.0
         for i in range(count_n):
-            n1 = math.sin((i * 13 + ticker_seed) * 0.17) * 0.004
-            n2 = math.cos((i * 7 + ticker_seed) * 0.31) * 0.003
-            n3 = math.sin((i * 23 + ticker_seed) * 0.09) * 0.005
-            noises.append(n1 + n2 + n3)
-        
-        # Cumulative trend path ending at target_price
-        cum_offsets = [0.0]
-        for n in noises:
-            cum_offsets.append(cum_offsets[-1] + n)
-        
-        final_offset = cum_offsets[-1]
-        normalized_offsets = [c - final_offset for c in cum_offsets[1:]]
+            # Deterministic LCG hash producing values in [-0.5, 0.5]
+            h = (i * 2654435761 + ticker_seed * 1013904223) & 0xFFFFFFFF
+            raw_val = (h / 4294967296.0) - 0.5
+            
+            # Momentum + random market shock
+            r = 0.35 * prev_r + 0.65 * (raw_val * 0.007)
+            returns.append(r)
+            prev_r = r
+
+        # Calculate cumulative price path
+        cum_multipliers = [1.0]
+        for r in returns:
+            cum_multipliers.append(cum_multipliers[-1] * (1.0 + r))
+
+        # Anchor price path to end precisely at current stock live price
+        final_mult = cum_multipliers[-1]
+        adjusted_multipliers = [m / final_mult for m in cum_multipliers[1:]]
 
         candles = []
         for i, ts in enumerate(timestamps):
-            price_center = base_price * (1.0 + normalized_offsets[i])
+            close_p = base_price * adjusted_multipliers[i]
+            prev_close_p = base_price * (adjusted_multipliers[i-1] if i > 0 else (adjusted_multipliers[i] * 0.998))
             
-            spread_factor = 0.003 + abs(math.sin((i * 11 + ticker_seed) * 0.2)) * 0.006
-            is_green = (math.sin((i * 17 + ticker_seed) * 0.4) > -0.1)
+            open_p = prev_close_p
             
-            if is_green:
-                open_p = price_center * (1.0 - spread_factor * 0.4)
-                close_p = price_center * (1.0 + spread_factor * 0.5)
-            else:
-                open_p = price_center * (1.0 + spread_factor * 0.4)
-                close_p = price_center * (1.0 - spread_factor * 0.5)
-            
-            if i == count_n - 1:
-                close_p = base_price
-                if open_p == close_p:
-                    open_p = base_price * 0.998
-
-            wick_top = max(open_p, close_p) * (1.0 + abs(math.sin((i * 19 + ticker_seed) * 0.3)) * 0.003)
-            wick_bot = min(open_p, close_p) * (1.0 - abs(math.cos((i * 29 + ticker_seed) * 0.25)) * 0.003)
+            # Realistic wicks and high/low bounds
+            h_val = ((i * 1103515245 + ticker_seed) & 0xFFFFFFFF) / 4294967296.0
+            wick_top = max(open_p, close_p) * (1.0 + h_val * 0.0025)
+            wick_bot = min(open_p, close_p) * (1.0 - (1.0 - h_val) * 0.0025)
 
             high_p = max(open_p, close_p, wick_top)
             low_p = min(open_p, close_p, wick_bot)
-            vol = int(150000 + abs(math.sin((i * 7 + ticker_seed) * 0.5)) * 450000)
+
+            # Realistic volume profile
+            vol_hash = ((i * 1664525 + ticker_seed * 22695477) & 0xFFFFFFFF) / 4294967296.0
+            vol = int(120000 + vol_hash * 450000)
 
             candles.append({
                 "time": ts,
