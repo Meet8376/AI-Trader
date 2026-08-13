@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calculator, X, ShieldAlert, CheckCircle, TrendingUp, IndianRupee } from 'lucide-react';
 import { StockQuote } from '../types/stock';
 import { DebateVerdict } from '../types/debate';
@@ -18,17 +18,21 @@ export const PositionSizerModal: React.FC<PositionSizerModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  if (!isOpen) return null;
-
-  const defaultEntry = stock.price;
-  const defaultTarget = verdict ? verdict.target_price : Math.round(stock.price * 1.035 * 100) / 100;
-  const defaultStop = verdict ? verdict.stop_loss : Math.round(stock.price * 0.985 * 100) / 100;
-
   const [capital, setCapital] = useState<number>(100000); // Default 1 Lakh INR
   const [riskPercent, setRiskPercent] = useState<number>(2); // Default 2% risk
-  const [entryPrice, setEntryPrice] = useState<number>(defaultEntry);
-  const [targetPrice, setTargetPrice] = useState<number>(defaultTarget);
-  const [stopLossPrice, setStopLossPrice] = useState<number>(defaultStop);
+  const [entryPrice, setEntryPrice] = useState<number>(stock?.price || 1000);
+  const [targetPrice, setTargetPrice] = useState<number>(verdict ? verdict.target_price : Math.round((stock?.price || 1000) * 1.035 * 100) / 100);
+  const [stopLossPrice, setStopLossPrice] = useState<number>(verdict ? verdict.stop_loss : Math.round((stock?.price || 1000) * 0.985 * 100) / 100);
+
+  useEffect(() => {
+    if (stock) {
+      setEntryPrice(stock.price);
+      setTargetPrice(verdict ? verdict.target_price : Math.round(stock.price * 1.035 * 100) / 100);
+      setStopLossPrice(verdict ? verdict.stop_loss : Math.round(stock.price * 0.985 * 100) / 100);
+    }
+  }, [stock, verdict, isOpen]);
+
+  if (!isOpen) return null;
 
   const currencySymbol = '₹';
 

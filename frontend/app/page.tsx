@@ -74,11 +74,14 @@ export default function DashboardPage() {
       } catch (e) {
         const activeStock = stocks.find(s => s.ticker === selectedTicker) || MOCK_STOCKS[0];
         
-        // Generate valid IST Indian market session timestamps
+        // Generate valid IST Indian market session timestamps based on timeframe
         const now = new Date();
         const timestamps: string[] = [];
         let dayOffset = 0;
-        
+
+        const isDaily = timeframe === '1D';
+        const step = timeframe === '1m' ? 1 : timeframe === '5m' ? 5 : timeframe === '1h' ? 60 : 15;
+
         while (timestamps.length < 60) {
           const d = new Date(now.getTime() - dayOffset * 86400000);
           const dayOfWeek = d.getDay();
@@ -86,22 +89,26 @@ export default function DashboardPage() {
             const year = d.getFullYear();
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const dateStr = String(d.getDate()).padStart(2, '0');
-            
-            const daySlots: string[] = [];
-            let m = 9 * 60 + 15; // 09:15 AM IST
-            const endM = 15 * 60 + 30; // 03:30 PM IST
-            
-            while (m <= endM) {
-              const hh = String(Math.floor(m / 60)).padStart(2, '0');
-              const mm = String(m % 60).padStart(2, '0');
-              daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
-              m += 15;
+
+            if (isDaily) {
+              timestamps.unshift(`${year}-${month}-${dateStr}`);
+            } else {
+              const daySlots: string[] = [];
+              let m = 9 * 60 + 15; // 09:15 AM IST
+              const endM = 15 * 60 + 30; // 03:30 PM IST
+
+              while (m <= endM) {
+                const hh = String(Math.floor(m / 60)).padStart(2, '0');
+                const mm = String(m % 60).padStart(2, '0');
+                daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
+                m += step;
+              }
+              timestamps.unshift(...daySlots);
             }
-            timestamps.unshift(...daySlots);
           }
           dayOffset++;
         }
-        
+
         const recentSlots = timestamps.slice(-60);
         const seed = selectedTicker.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
 
@@ -263,20 +270,60 @@ export default function DashboardPage() {
     }
   };
 
+  const KNOWN_PRICES: Record<string, { price: number; name: string }> = {
+    RELIANCE: { price: 2985.40, name: 'Reliance Industries Ltd' },
+    TCS: { price: 4180.20, name: 'Tata Consultancy Services Ltd' },
+    HDFCBANK: { price: 1645.10, name: 'HDFC Bank Ltd' },
+    ICICIBANK: { price: 1210.80, name: 'ICICI Bank Ltd' },
+    BHARTIARTL: { price: 1475.25, name: 'Bharti Airtel Ltd' },
+    INFY: { price: 1820.65, name: 'Infosys Limited' },
+    SBIN: { price: 845.75, name: 'State Bank of India' },
+    ITC: { price: 492.50, name: 'ITC Limited' },
+    HINDUNILVR: { price: 2720.00, name: 'Hindustan Unilever Ltd' },
+    LT: { price: 3615.00, name: 'Larsen & Toubro Ltd' },
+    TATAMOTORS: { price: 1055.30, name: 'Tata Motors Ltd' },
+    ZOMATO: { price: 265.40, name: 'Zomato Limited' },
+    SUZLON: { price: 68.50, name: 'Suzlon Energy Ltd' },
+    PAYTM: { price: 680.00, name: 'One97 Communications (Paytm)' },
+    TATAPOWER: { price: 438.50, name: 'Tata Power Co Ltd' },
+    MARUTI: { price: 12450.00, name: 'Maruti Suzuki India Ltd' },
+    BAJFINANCE: { price: 6840.00, name: 'Bajaj Finance Limited' },
+    WIPRO: { price: 535.90, name: 'Wipro Limited' },
+  };
+
+  const getCustomPrice = (t: string) => {
+    const uppercase = t.toUpperCase();
+    if (KNOWN_PRICES[uppercase]) return KNOWN_PRICES[uppercase].price;
+    const seed = uppercase.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
+    return round(50 + (seed % 2850) + (seed % 100) / 100);
+  };
+
+  const getCustomName = (t: string) => {
+    const uppercase = t.toUpperCase();
+    if (KNOWN_PRICES[uppercase]) return KNOWN_PRICES[uppercase].name;
+    return `${uppercase} India Ltd`;
+  };
+
   const handleSelectTicker = (ticker: string) => {
     const formatted = ticker.toUpperCase().trim();
-    setSelectedTicker(formatted);
+    if (formatted !== selectedTicker) {
+      setSelectedTicker(formatted);
+      setOpinions([]);
+      setVerdict(null);
+    }
+    setActiveTab('chart'); // Switch to main chart when ticker selected
     const exists = stocks.some(s => s.ticker === formatted);
     if (!exists) {
+      const p = getCustomPrice(formatted);
       const newStock: StockQuote = {
         ticker: formatted,
-        name: `${formatted} India Ltd`,
-        price: 1450.00,
-        change: 18.50,
-        change_percent: 1.29,
-        high: 1470.00,
-        low: 1435.00,
-        open: 1440.00,
+        name: getCustomName(formatted),
+        price: p,
+        change: round(p * 0.012),
+        change_percent: 1.2,
+        high: round(p * 1.018),
+        low: round(p * 0.985),
+        open: round(p * 0.995),
         volume: 1850000,
         market_cap: '₹15,000 Cr',
         pe_ratio: 24.5
@@ -287,22 +334,27 @@ export default function DashboardPage() {
 
   const activeStock = stocks.find(s => s.ticker === selectedTicker) || {
     ticker: selectedTicker,
-    name: `${selectedTicker} India Ltd`,
-    price: 1450.00,
-    change: 18.50,
-    change_percent: 1.29,
-    high: 1470.00,
-    low: 1435.00,
-    open: 1440.00,
+    name: getCustomName(selectedTicker),
+    price: getCustomPrice(selectedTicker),
+    change: round(getCustomPrice(selectedTicker) * 0.012),
+    change_percent: 1.2,
+    high: round(getCustomPrice(selectedTicker) * 1.018),
+    low: round(getCustomPrice(selectedTicker) * 0.985),
+    open: round(getCustomPrice(selectedTicker) * 0.995),
     volume: 1850000,
     market_cap: '₹15,000 Cr',
     pe_ratio: 24.5
   };
 
+  const handleModeChange = (newMode: TradingMode) => {
+    setMode(newMode);
+    setTimeframe(newMode === 'long-term' ? '1D' : '15m');
+  };
+
   return (
     <div className="app-container">
       {/* Header */}
-      <Header mode={mode} onModeChange={setMode} />
+      <Header mode={mode} onModeChange={handleModeChange} />
 
       {/* Navigation Sub-Bar */}
       <div style={{

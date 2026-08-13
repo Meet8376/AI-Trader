@@ -39,10 +39,13 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
     console.warn("Backend candles unreachable, generating Indian stock fallback candles");
   }
 
-  // Generate authentic Indian market session timestamps (09:15 to 15:30 IST)
+  // Generate authentic Indian market session timestamps based on timeframe
   const now = new Date();
   const timestamps: string[] = [];
   let dayOffset = 0;
+
+  const isDaily = timeframe === '1D';
+  const step = timeframe === '1m' ? 1 : timeframe === '5m' ? 5 : timeframe === '1h' ? 60 : 15;
 
   while (timestamps.length < 60) {
     const d = new Date(now.getTime() - dayOffset * 86400000);
@@ -51,16 +54,21 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const dateStr = String(d.getDate()).padStart(2, '0');
-      const daySlots: string[] = [];
-      let m = 9 * 60 + 15;
-      const endM = 15 * 60 + 30;
-      while (m <= endM) {
-        const hh = String(Math.floor(m / 60)).padStart(2, '0');
-        const mm = String(m % 60).padStart(2, '0');
-        daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
-        m += 15;
+
+      if (isDaily) {
+        timestamps.unshift(`${year}-${month}-${dateStr}`);
+      } else {
+        const daySlots: string[] = [];
+        let m = 9 * 60 + 15;
+        const endM = 15 * 60 + 30;
+        while (m <= endM) {
+          const hh = String(Math.floor(m / 60)).padStart(2, '0');
+          const mm = String(m % 60).padStart(2, '0');
+          daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
+          m += step;
+        }
+        timestamps.unshift(...daySlots);
       }
-      timestamps.unshift(...daySlots);
     }
     dayOffset++;
   }
