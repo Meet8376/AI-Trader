@@ -320,7 +320,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           borderBottom: '1px solid var(--border-color)',
           padding: '6px 16px',
           display: 'flex',
-          justify: 'space-between',
+          justifyContent: 'space-between',
           alignItems: 'center',
           fontSize: '0.78rem'
         }}
