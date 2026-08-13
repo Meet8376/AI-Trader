@@ -1,463 +1,304 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Header } from '../components/Header';
-import { Sidebar } from '../components/Sidebar';
-import { CandlestickChart } from '../components/CandlestickChart';
-import { DebatePanel } from '../components/DebatePanel';
-import { TopPicks } from '../components/TopPicks';
-import { PositionSizerModal } from '../components/PositionSizerModal';
-import { StockQuote, CandleData, TechnicalIndicators, TradingMode } from '../types/stock';
-import { AgentOpinion, DebateVerdict, TopPick } from '../types/debate';
-import { fetchStocks, fetchStockCandles, analyzeStock, fetchTopPicks } from '../lib/api';
+import Link from 'next/link';
+import { Navbar } from '../components/Navbar';
+import { TickerTape } from '../components/TickerTape';
+import { SearchModal } from '../components/SearchModal';
+import { PaperTradeModal } from '../components/PaperTradeModal';
+import { useTraderStore } from '../store/useTraderStore';
+import { StockQuote } from '../types/stock';
+import { fetchStocks } from '../lib/api';
+import { 
+  TrendingUp, 
+  TrendingDown, 
+  Globe, 
+  BarChart2, 
+  PieChart, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Activity, 
+  Zap, 
+  ShieldCheck 
+} from 'lucide-react';
 
-const MOCK_STOCKS: StockQuote[] = [
-  { ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.40, change_percent: 0.86, high: 3010.00, low: 2960.00, open: 2970.00, volume: 2450000, market_cap: '₹20.19 Lakh Cr', pe_ratio: 28.4 },
-  { ticker: 'TCS', name: 'Tata Consultancy Services Ltd', price: 4180.20, change: 30.20, change_percent: 0.73, high: 4210.00, low: 4140.00, open: 4150.00, volume: 1200000, market_cap: '₹15.12 Lakh Cr', pe_ratio: 33.1 },
-  { ticker: 'HDFCBANK', name: 'HDFC Bank Ltd', price: 1645.10, change: 15.10, change_percent: 0.93, high: 1658.00, low: 1625.00, open: 1630.00, volume: 4200000, market_cap: '₹12.52 Lakh Cr', pe_ratio: 18.9 },
-  { ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.80, change_percent: 1.32, high: 1220.00, low: 1190.00, open: 1195.00, volume: 2800000, market_cap: '₹8.51 Lakh Cr', pe_ratio: 17.4 },
-  { ticker: 'BHARTIARTL', name: 'Bharti Airtel Ltd', price: 1475.25, change: 15.25, change_percent: 1.04, high: 1488.00, low: 1455.00, open: 1460.00, volume: 1950000, market_cap: '₹8.72 Lakh Cr', pe_ratio: 52.1 },
-  { ticker: 'INFY', name: 'Infosys Limited', price: 1820.65, change: -19.35, change_percent: -1.05, high: 1845.00, low: 1810.00, open: 1840.00, volume: 3100000, market_cap: '₹7.56 Lakh Cr', pe_ratio: 26.8 },
-  { ticker: 'SBIN', name: 'State Bank of India', price: 845.75, change: 10.75, change_percent: 1.29, high: 855.00, low: 830.00, open: 835.00, volume: 5400000, market_cap: '₹7.55 Lakh Cr', pe_ratio: 11.8 },
-  { ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', price: 1055.30, change: 15.30, change_percent: 1.47, high: 1065.00, low: 1035.00, open: 1040.00, volume: 3800000, market_cap: '₹3.88 Lakh Cr', pe_ratio: 14.2 },
-  { ticker: 'LT', name: 'Larsen & Toubro Ltd', price: 3615.00, change: 35.00, change_percent: 0.98, high: 3640.00, low: 3570.00, open: 3580.00, volume: 1100000, market_cap: '₹4.96 Lakh Cr', pe_ratio: 34.5 },
-  { ticker: 'ITC', name: 'ITC Limited', price: 492.50, change: 4.50, change_percent: 0.92, high: 496.00, low: 486.00, open: 488.00, volume: 4800000, market_cap: '₹6.15 Lakh Cr', pe_ratio: 28.1 }
+const SECTORS = [
+  { name: 'BANKING', change: 1.15, stocksCount: 12, topMover: 'ICICIBANK' },
+  { name: 'IT SECTOR', change: -0.45, stocksCount: 8, topMover: 'TCS' },
+  { name: 'AUTO & EV', change: 1.62, stocksCount: 6, topMover: 'TATAMOTORS' },
+  { name: 'ENERGY & INFRA', change: 0.88, stocksCount: 14, topMover: 'RELIANCE' },
+  { name: 'PHARMA & FMCG', change: 0.35, stocksCount: 10, topMover: 'ITC' },
+  { name: 'METALS & MINING', change: 1.42, stocksCount: 5, topMover: 'TATASTEEL' }
 ];
 
-export default function DashboardPage() {
-  const [mode, setMode] = useState<TradingMode>('intraday');
-  const [activeTab, setActiveTab] = useState<'chart' | 'topPicks'>('chart');
+export default function MarketOverviewHome() {
+  const indices = useTraderStore((state) => state.indices);
+  const setSelectedTicker = useTraderStore((state) => state.setSelectedTicker);
   
-  const [stocks, setStocks] = useState<StockQuote[]>(MOCK_STOCKS);
-  const [selectedTicker, setSelectedTicker] = useState<string>('RELIANCE');
-  const [timeframe, setTimeframe] = useState<string>('15m');
-  
-  const [candles, setCandles] = useState<CandleData[]>([]);
-  const [indicators, setIndicators] = useState<TechnicalIndicators | undefined>(undefined);
-  
-  const [opinions, setOpinions] = useState<AgentOpinion[]>([]);
-  const [verdict, setVerdict] = useState<DebateVerdict | null>(null);
-  const [isDebating, setIsDebating] = useState<boolean>(false);
-  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
-  
-  const [topPicks, setTopPicks] = useState<TopPick[]>([]);
+  const [stocks, setStocks] = useState<StockQuote[]>([]);
+  const [activeTradeStock, setActiveTradeStock] = useState<StockQuote | null>(null);
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
 
-  // Load stocks & top picks
   useEffect(() => {
     async function loadData() {
       try {
-        const stockList = await fetchStocks();
-        if (stockList && stockList.length > 0) {
-          setStocks(stockList);
-        }
+        const res = await fetchStocks();
+        if (res && res.length > 0) setStocks(res);
       } catch (e) {
-        console.log("Using mock stock list fallback");
-      }
-
-      try {
-        const picks = await fetchTopPicks(mode);
-        setTopPicks(picks);
-      } catch (e) {
-        console.log("Using mock top picks fallback");
+        console.log('Using default stock catalog');
       }
     }
     loadData();
-  }, [mode]);
+  }, []);
 
-  // Load candle data when ticker or timeframe changes
-  useEffect(() => {
-    async function loadCandles() {
-      try {
-        const res = await fetchStockCandles(selectedTicker, timeframe);
-        setCandles(res.candles);
-        setIndicators(res.indicators);
-      } catch (e) {
-        const activeStock = stocks.find(s => s.ticker === selectedTicker) || MOCK_STOCKS[0];
-        
-        // Generate valid IST Indian market session timestamps based on timeframe
-        const now = new Date();
-        const timestamps: string[] = [];
-        let dayOffset = 0;
-
-        const isDaily = timeframe === '1D';
-        const step = timeframe === '1m' ? 1 : timeframe === '5m' ? 5 : timeframe === '1h' ? 60 : 15;
-
-        while (timestamps.length < 60) {
-          const d = new Date(now.getTime() - dayOffset * 86400000);
-          const dayOfWeek = d.getDay();
-          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const dateStr = String(d.getDate()).padStart(2, '0');
-
-            if (isDaily) {
-              timestamps.unshift(`${year}-${month}-${dateStr}`);
-            } else {
-              const daySlots: string[] = [];
-              let m = 9 * 60 + 15; // 09:15 AM IST
-              const endM = 15 * 60 + 30; // 03:30 PM IST
-
-              while (m <= endM) {
-                const hh = String(Math.floor(m / 60)).padStart(2, '0');
-                const mm = String(m % 60).padStart(2, '0');
-                daySlots.push(`${year}-${month}-${dateStr} ${hh}:${mm}`);
-                m += step;
-              }
-              timestamps.unshift(...daySlots);
-            }
-          }
-          dayOffset++;
-        }
-
-        const recentSlots = timestamps.slice(-60);
-        const seed = selectedTicker.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
-
-        // Realistic financial random walk with momentum & volatility (NO Math.sin)
-        const returns: number[] = [];
-        let prevR = 0;
-        for (let i = 0; i < recentSlots.length; i++) {
-          const h = ((i * 2654435761 + seed * 1013904223) >>> 0);
-          const raw = (h / 4294967296) - 0.5;
-          const r = 0.35 * prevR + 0.65 * (raw * 0.008);
-          returns.push(r);
-          prevR = r;
-        }
-
-        const cumMults: number[] = [1.0];
-        for (const r of returns) cumMults.push(cumMults[cumMults.length - 1] * (1 + r));
-        const finalM = cumMults[cumMults.length - 1];
-        const adjMults = cumMults.slice(1).map(m => m / finalM);
-
-        const baseP = activeStock.price;
-        const mockCandles: CandleData[] = recentSlots.map((ts, i) => {
-          const closeP = round(baseP * adjMults[i]);
-          const openP = i > 0 ? round(baseP * adjMults[i - 1]) : round(closeP * 0.998);
-          const hv = ((i * 1103515245 + seed) >>> 0) / 4294967296;
-          const highP = round(Math.max(openP, closeP) * (1 + hv * 0.003));
-          const lowP = round(Math.min(openP, closeP) * (1 - (1 - hv) * 0.003));
-          const vh = ((i * 1664525 + seed * 22695477) >>> 0) / 4294967296;
-
-          return {
-            time: ts,
-            open: openP,
-            high: highP,
-            low: lowP,
-            close: closeP,
-            volume: Math.floor(120000 + vh * 450000)
-          };
-        });
-
-        setCandles(mockCandles);
-        setIndicators({
-          rsi: 64.2,
-          macd: { macd: 14.2, signal: 10.8, histogram: 3.4 },
-          bollinger: { upper: round(activeStock.price * 1.02), middle: round(activeStock.price), lower: round(activeStock.price * 0.98) },
-          ema_20: round(activeStock.price * 0.992),
-          ema_50: round(activeStock.price * 0.978),
-          vwap: round(activeStock.price * 0.996),
-          pivot: round(activeStock.price * 0.998),
-          resistance_1: round(activeStock.price * 1.015),
-          support_1: round(activeStock.price * 0.985),
-          atr: round(activeStock.price * 0.012),
-          supertrend: 'Bullish (Buy)',
-          trend: 'Strong Bullish'
-        });
-      }
-    }
-
-    loadCandles();
-    setOpinions([]);
-    setVerdict(null);
-  }, [selectedTicker, timeframe, stocks]);
-
-  // Handle Gemini Multi-Agent Debate execution
-  const handleTriggerDebate = async () => {
-    setIsDebating(true);
-    setOpinions([]);
-    setVerdict(null);
-
-    try {
-      const res = await analyzeStock(selectedTicker, mode);
-      setOpinions(res.opinions);
-      setVerdict(res.verdict);
-    } catch (e) {
-      // Direct local fallback if API unreachable
-      setTimeout(() => {
-        const currentStock = stocks.find(s => s.ticker === selectedTicker) || MOCK_STOCKS[0];
-        const currSym = '₹';
-
-        const mockOpinions: AgentOpinion[] = [
-          {
-            agent_id: 'tech_analyst',
-            agent_name: 'Alex Vance (Gemini AI)',
-            role: 'Technical Analyst',
-            avatar: '📊',
-            signal: 'BUY',
-            confidence: 88,
-            key_points: [
-              `Price action holding above EMA(20) at ${currSym}${round(currentStock.price * 0.992)}.`,
-              'RSI (14) at 64.2 confirms healthy bullish momentum on NSE chart without overbought stretch.',
-              'Intraday VWAP anchored support providing firm floor.'
-            ],
-            technical_targets: {
-              entry: currentStock.price,
-              target_1: round(currentStock.price * 1.03),
-              target_2: round(currentStock.price * 1.05),
-              stop_loss: round(currentStock.price * 0.985)
-            },
-            full_argument: `Technicals for ${selectedTicker} confirm a high-probability bullish setup on Indian exchanges.`
-          },
-          {
-            agent_id: 'sentiment_analyst',
-            agent_name: 'Maya Lin (Gemini AI)',
-            role: 'News & Sentiment Analyst',
-            avatar: '📰',
-            signal: 'BUY',
-            confidence: 84,
-            key_points: [
-              'DII & FII block orders favor steady accumulation on dips.',
-              'Sector relative strength index outperforming NIFTY 50 by +2.1%.'
-            ],
-            full_argument: `Market sentiment and order book depth remain heavily buyer dominant.`
-          },
-          {
-            agent_id: 'bull_debater',
-            agent_name: "Leo 'The Bull' Sterling (Gemini AI)",
-            role: 'Bull Debater',
-            avatar: '🐂',
-            signal: 'BUY',
-            confidence: 91,
-            key_points: [
-              'Confluence of VWAP support, RSI momentum, and strong institutional interest.',
-              `Target projection of ${currSym}${round(currentStock.price * (mode === 'intraday' ? 1.035 : 1.15))}.`
-            ],
-            full_argument: `High conviction BUY recommendation for ${selectedTicker}!`
-          },
-          {
-            agent_id: 'bear_debater',
-            agent_name: "Sophia 'The Bear' Rhodes (Gemini AI)",
-            role: 'Bear Debater',
-            avatar: '🐻',
-            signal: 'HOLD',
-            confidence: 64,
-            key_points: [
-              `Overhead resistance cluster near ${currSym}${round(currentStock.price * 1.02)}.`,
-              'Trailing stop-loss recommended to guard against RBI policy rate volatility.'
-            ],
-            full_argument: `Caution advised near supply zone resistance on BSE.`
-          }
-        ];
-
-        const mockVerdict: DebateVerdict = {
-          ticker: selectedTicker,
-          mode: mode,
-          verdict: 'BUY',
-          confidence: 86,
-          consensus_score: 8.8,
-          target_price: round(currentStock.price * (mode === 'intraday' ? 1.035 : 1.15)),
-          stop_loss: round(currentStock.price * (mode === 'intraday' ? 0.985 : 0.94)),
-          horizon: mode === 'intraday' ? '1-3 Days (Intraday)' : '3-6 Months (Long-Term)',
-          summary: `The Gemini AI Trading Floor reaches consensus: BUY ${selectedTicker} at ${currSym}${currentStock.price} on NSE/BSE. Technical momentum and institutional order flow outweigh short-term bear warnings.`,
-          bull_case: 'Technical breakout supported by institutional DII volume.',
-          bear_case: 'Overhead supply near resistance zone.'
-        };
-
-        setOpinions(mockOpinions);
-        setVerdict(mockVerdict);
-      }, 1000);
-    } finally {
-      setIsDebating(false);
-    }
-  };
-
-  const KNOWN_PRICES: Record<string, { price: number; name: string }> = {
-    RELIANCE: { price: 2985.40, name: 'Reliance Industries Ltd' },
-    TCS: { price: 4180.20, name: 'Tata Consultancy Services Ltd' },
-    HDFCBANK: { price: 1645.10, name: 'HDFC Bank Ltd' },
-    ICICIBANK: { price: 1210.80, name: 'ICICI Bank Ltd' },
-    BHARTIARTL: { price: 1475.25, name: 'Bharti Airtel Ltd' },
-    INFY: { price: 1820.65, name: 'Infosys Limited' },
-    SBIN: { price: 845.75, name: 'State Bank of India' },
-    ITC: { price: 492.50, name: 'ITC Limited' },
-    HINDUNILVR: { price: 2720.00, name: 'Hindustan Unilever Ltd' },
-    LT: { price: 3615.00, name: 'Larsen & Toubro Ltd' },
-    TATAMOTORS: { price: 1055.30, name: 'Tata Motors Ltd' },
-    ZOMATO: { price: 265.40, name: 'Zomato Limited' },
-    SUZLON: { price: 68.50, name: 'Suzlon Energy Ltd' },
-    PAYTM: { price: 680.00, name: 'One97 Communications (Paytm)' },
-    TATAPOWER: { price: 438.50, name: 'Tata Power Co Ltd' },
-    MARUTI: { price: 12450.00, name: 'Maruti Suzuki India Ltd' },
-    BAJFINANCE: { price: 6840.00, name: 'Bajaj Finance Limited' },
-    WIPRO: { price: 535.90, name: 'Wipro Limited' },
-  };
-
-  const getCustomPrice = (t: string) => {
-    const uppercase = t.toUpperCase();
-    if (KNOWN_PRICES[uppercase]) return KNOWN_PRICES[uppercase].price;
-    const seed = uppercase.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
-    return round(50 + (seed % 2850) + (seed % 100) / 100);
-  };
-
-  const getCustomName = (t: string) => {
-    const uppercase = t.toUpperCase();
-    if (KNOWN_PRICES[uppercase]) return KNOWN_PRICES[uppercase].name;
-    return `${uppercase} India Ltd`;
-  };
-
-  const handleSelectTicker = (ticker: string) => {
-    const formatted = ticker.toUpperCase().trim();
-    if (formatted !== selectedTicker) {
-      setSelectedTicker(formatted);
-      setOpinions([]);
-      setVerdict(null);
-    }
-    setActiveTab('chart'); // Switch to main chart when ticker selected
-    const exists = stocks.some(s => s.ticker === formatted);
-    if (!exists) {
-      const p = getCustomPrice(formatted);
-      const newStock: StockQuote = {
-        ticker: formatted,
-        name: getCustomName(formatted),
-        price: p,
-        change: round(p * 0.012),
-        change_percent: 1.2,
-        high: round(p * 1.018),
-        low: round(p * 0.985),
-        open: round(p * 0.995),
-        volume: 1850000,
-        market_cap: '₹15,000 Cr',
-        pe_ratio: 24.5
-      };
-      setStocks(prev => [newStock, ...prev]);
-    }
-  };
-
-  const activeStock = stocks.find(s => s.ticker === selectedTicker) || {
-    ticker: selectedTicker,
-    name: getCustomName(selectedTicker),
-    price: getCustomPrice(selectedTicker),
-    change: round(getCustomPrice(selectedTicker) * 0.012),
-    change_percent: 1.2,
-    high: round(getCustomPrice(selectedTicker) * 1.018),
-    low: round(getCustomPrice(selectedTicker) * 0.985),
-    open: round(getCustomPrice(selectedTicker) * 0.995),
-    volume: 1850000,
-    market_cap: '₹15,000 Cr',
-    pe_ratio: 24.5
-  };
-
-  const handleModeChange = (newMode: TradingMode) => {
-    setMode(newMode);
-    setTimeframe(newMode === 'long-term' ? '1D' : '15m');
-  };
+  const gainers = [...stocks].sort((a, b) => b.change_percent - a.change_percent).slice(0, 5);
+  const losers = [...stocks].sort((a, b) => a.change_percent - b.change_percent).slice(0, 5);
+  const activeVolume = [...stocks].sort((a, b) => b.volume - a.volume).slice(0, 6);
 
   return (
     <div className="app-container">
-      {/* Header */}
-      <Header mode={mode} onModeChange={handleModeChange} />
+      <Navbar />
+      <TickerTape />
 
-      {/* Navigation Sub-Bar */}
-      <div style={{
-        background: 'var(--bg-secondary)',
-        borderBottom: '1px solid var(--border-color)',
-        padding: '0 20px',
-        display: 'flex',
-        gap: '20px',
-        fontSize: '0.85rem'
-      }}>
-        <button
-          onClick={() => setActiveTab('chart')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'chart' ? '2px solid var(--accent-blue)' : '2px solid transparent',
-            color: activeTab === 'chart' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            fontWeight: 600,
-            padding: '10px 0',
-            cursor: 'pointer'
-          }}
-        >
-          📈 Live NSE/BSE Chart & AI Debate Floor
-        </button>
-        <button
-          onClick={() => setActiveTab('topPicks')}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'topPicks' ? '2px solid var(--accent-gold)' : '2px solid transparent',
-            color: activeTab === 'topPicks' ? 'var(--accent-gold)' : 'var(--text-secondary)',
-            fontWeight: 600,
-            padding: '10px 0',
-            cursor: 'pointer'
-          }}
-        >
-          ✨ Indian AI Top Recommendations ({topPicks.length > 0 ? topPicks.length : 5})
-        </button>
-      </div>
+      <main className="main-layout" style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+        {/* Hero Banner: Indian Markets Today */}
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-bright)', letterSpacing: '-0.5px' }}>
+              Indian Equity Markets Today
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', marginTop: '4px' }}>
+              Live NSE/BSE Index Movement, Sector Heatmap, Institutional Activity & Real-time Trading
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Link href="/screener" className="btn btn-secondary">
+              🔍 Stock Screener
+            </Link>
+            <Link href="/portfolio" className="btn btn-primary">
+              💼 Virtual Portfolio (₹10L Cash)
+            </Link>
+          </div>
+        </div>
 
-      {/* Main Content Layout */}
-      {activeTab === 'chart' ? (
-        <main className="main-content">
-          {/* Left Sidebar: Watchlist */}
-          <Sidebar
-            stocks={stocks}
-            selectedTicker={selectedTicker}
-            onSelectTicker={handleSelectTicker}
-          />
+        {/* Major Indices Cards Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+          {indices.map((idx) => {
+            const isUp = idx.change >= 0;
+            return (
+              <div key={idx.symbol} className="glass-card glass-card-hover" style={{ padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-bright)' }}>{idx.name}</span>
+                  <span className={`badge ${isUp ? 'badge-green' : 'badge-red'}`}>
+                    {isUp ? '▲' : '▼'} {Math.abs(idx.change_percent).toFixed(2)}%
+                  </span>
+                </div>
+                <div className="font-mono" style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-bright)', marginBottom: '4px' }}>
+                  {idx.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div className={`font-mono ${isUp ? 'text-green' : 'text-red'}`} style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                  {isUp ? '+' : ''}{idx.change.toFixed(2)} pts
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-          {/* Middle Main: Candlestick Chart */}
-          <CandlestickChart
-            stock={activeStock}
-            candles={candles}
-            indicators={indicators}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-            onTriggerDebate={handleTriggerDebate}
-            isDebating={isDebating}
-          />
+        {/* Sector Performance Heatmap */}
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-bright)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <PieChart size={18} style={{ color: 'var(--accent-purple)' }} /> Sector Heatmap (NSE/BSE)
+            </h2>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Color weighted by sector movement</span>
+          </div>
 
-          {/* Right Panel: AI Debate Floor */}
-          <DebatePanel
-            ticker={selectedTicker}
-            mode={mode}
-            opinions={opinions}
-            verdict={verdict}
-            isDebating={isDebating}
-            onRunDebate={handleTriggerDebate}
-            onOpenCalculator={() => setIsCalculatorOpen(true)}
-          />
-        </main>
-      ) : (
-        <main style={{ padding: '16px', height: 'calc(100vh - 108px)' }}>
-          <TopPicks
-            picks={topPicks.length > 0 ? topPicks : [
-              { rank: 1, ticker: 'RELIANCE', name: 'Reliance Industries Ltd', price: 2985.40, change: 25.4, change_percent: 0.86, consensus_score: 9.6, signal: 'STRONG BUY', rationale: 'Intraday VWAP breakout with high DII order flow on NSE.', target_price: 3080.00, stop_loss: 2940.00 },
-              { rank: 2, ticker: 'TCS', name: 'Tata Consultancy Services Ltd', price: 4180.20, change: 30.2, change_percent: 0.73, consensus_score: 9.4, signal: 'STRONG BUY', rationale: 'Strong IT sector momentum and bullish EMA crossover.', target_price: 4320.00, stop_loss: 4120.00 },
-              { rank: 3, ticker: 'HDFCBANK', name: 'HDFC Bank Ltd', price: 1645.10, change: 15.1, change_percent: 0.93, consensus_score: 9.2, signal: 'BUY', rationale: 'Banking rally leader with strong deposit growth.', target_price: 1710.00, stop_loss: 1620.00 },
-              { rank: 4, ticker: 'TATAMOTORS', name: 'Tata Motors Ltd', price: 1055.30, change: 15.3, change_percent: 1.47, consensus_score: 9.0, signal: 'BUY', rationale: 'JLR margins expansion and EV market leadership in India.', target_price: 1110.00, stop_loss: 1030.00 },
-              { rank: 5, ticker: 'ICICIBANK', name: 'ICICI Bank Ltd', price: 1210.80, change: 15.8, change_percent: 1.32, consensus_score: 8.8, signal: 'BUY', rationale: 'NIFTY Bank breakout with strong credit growth metrics.', target_price: 1260.00, stop_loss: 1190.00 },
-            ]}
-            mode={mode}
-            onSelectTicker={(ticker) => {
-              handleSelectTicker(ticker);
-              setActiveTab('chart');
-            }}
-          />
-        </main>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+            {SECTORS.map((sec) => {
+              const isUp = sec.change >= 0;
+              return (
+                <div
+                  key={sec.name}
+                  className="glass-card"
+                  style={{
+                    padding: '16px',
+                    background: isUp ? 'rgba(8, 153, 129, 0.08)' : 'rgba(242, 54, 69, 0.08)',
+                    borderColor: isUp ? 'rgba(8, 153, 129, 0.3)' : 'rgba(242, 54, 69, 0.3)'
+                  }}
+                >
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-bright)', marginBottom: '6px' }}>
+                    {sec.name}
+                  </div>
+                  <div className={`font-mono ${isUp ? 'text-green' : 'text-red'}`} style={{ fontSize: '1.25rem', fontWeight: 800 }}>
+                    {isUp ? '+' : ''}{sec.change.toFixed(2)}%
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    Leader: <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{sec.topMover}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Side-by-Side: Top Gainers & Top Losers */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
+          {/* Top Gainers */}
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-green-bright)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <TrendingUp size={18} /> Top NSE Gainers
+              </h3>
+              <Link href="/screener" style={{ color: 'var(--accent-blue)', fontSize: '0.78rem', textDecoration: 'none' }}>
+                View All →
+              </Link>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {gainers.map((stock) => (
+                <div
+                  key={stock.ticker}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-tertiary)',
+                    display: 'flex',
+                    justify: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Link
+                    href={`/chart/${stock.ticker}`}
+                    onClick={() => setSelectedTicker(stock.ticker)}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <div style={{ fontWeight: 700, color: 'var(--text-bright)' }}>{stock.ticker}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{stock.name}</div>
+                  </Link>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)' }}>
+                        ₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="font-mono text-green" style={{ fontSize: '0.78rem', fontWeight: 600 }}>
+                        +{stock.change_percent.toFixed(2)}%
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setActiveTradeStock(stock);
+                        setTradeModalOpen(true);
+                      }}
+                      className="btn btn-success"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                    >
+                      BUY
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Losers */}
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-red-bright)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <TrendingDown size={18} /> Top NSE Losers
+              </h3>
+              <Link href="/screener" style={{ color: 'var(--accent-blue)', fontSize: '0.78rem', textDecoration: 'none' }}>
+                View All →
+              </Link>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {losers.map((stock) => (
+                <div
+                  key={stock.ticker}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--bg-tertiary)',
+                    display: 'flex',
+                    justify: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Link
+                    href={`/chart/${stock.ticker}`}
+                    onClick={() => setSelectedTicker(stock.ticker)}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <div style={{ fontWeight: 700, color: 'var(--text-bright)' }}>{stock.ticker}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{stock.name}</div>
+                  </Link>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)' }}>
+                        ₹{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="font-mono text-red" style={{ fontSize: '0.78rem', fontWeight: 600 }}>
+                        {stock.change_percent.toFixed(2)}%
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setActiveTradeStock(stock);
+                        setTradeModalOpen(true);
+                      }}
+                      className="btn btn-danger"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                    >
+                      SELL
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* FII / DII Institutional Activity Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '28px' }}>
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>FII NET ACTIVITY (TODAY)</div>
+            <div className="font-mono text-green" style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '4px' }}>
+              +₹1,420.50 Cr
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Foreign Institutional Buying</div>
+          </div>
+
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>DII NET ACTIVITY (TODAY)</div>
+            <div className="font-mono text-green" style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '4px' }}>
+              +₹890.20 Cr
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Domestic Institutional Buying</div>
+          </div>
+
+          <div className="glass-card" style={{ padding: '16px' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>INDIA VIX (VOLATILITY)</div>
+            <div className="font-mono text-blue" style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '4px' }}>
+              14.25 <span style={{ fontSize: '0.85rem', color: 'var(--accent-red-bright)' }}>(-2.1%)</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Low Volatility Regime</div>
+          </div>
+        </div>
+      </main>
+
+      {/* Modals */}
+      <SearchModal />
+      {activeTradeStock && (
+        <PaperTradeModal
+          stock={activeTradeStock}
+          isOpen={tradeModalOpen}
+          onClose={() => setTradeModalOpen(false)}
+        />
       )}
-
-      {/* Position Sizer & Risk Calculator Modal */}
-      <PositionSizerModal
-        stock={activeStock}
-        verdict={verdict}
-        isOpen={isCalculatorOpen}
-        onClose={() => setIsCalculatorOpen(false)}
-      />
     </div>
   );
-
-}
-
-function round(val: number): number {
-  return Math.round(val * 100) / 100;
 }

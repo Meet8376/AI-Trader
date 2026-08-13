@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi } from 'lightweight-charts';
+import React, { useEffect, useRef, useState } from 'react';
+import { createChart, ColorType, IChartApi, SeriesMarker } from 'lightweight-charts';
 import { CandleData, TechnicalIndicators, StockQuote } from '../types/stock';
-import { Activity, Zap } from 'lucide-react';
+import { Activity, Zap, Layers, BarChart2, TrendingUp, Sliders, ShoppingBag } from 'lucide-react';
 
 interface CandlestickChartProps {
   stock: StockQuote;
@@ -11,9 +11,12 @@ interface CandlestickChartProps {
   indicators?: TechnicalIndicators;
   timeframe: string;
   onTimeframeChange: (tf: string) => void;
-  onTriggerDebate: () => void;
-  isDebating: boolean;
+  onTriggerDebate?: () => void;
+  isDebating?: boolean;
+  onOpenTrade?: (type: 'BUY' | 'SELL') => void;
 }
+
+export type ChartType = 'candlestick' | 'line' | 'area' | 'bar';
 
 export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   stock,
@@ -22,17 +25,24 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   timeframe,
   onTimeframeChange,
   onTriggerDebate,
-  isDebating
+  isDebating = false,
+  onOpenTrade
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
+  const [chartType, setChartType] = useState<ChartType>('candlestick');
+  const [showEma20, setShowEma20] = useState(true);
+  const [showEma50, setShowEma50] = useState(true);
+  const [showBollinger, setShowBollinger] = useState(false);
+  const [showVwap, setShowVwap] = useState(true);
+
   const currencySymbol = '₹';
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    if (!chartContainerRef.current || candles.length === 0) return;
 
-    // Clear previous instance if exists
+    // Clear previous chart
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
@@ -40,32 +50,30 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0a0e17' },
-        textColor: '#9ca3af',
+        background: { type: ColorType.Solid, color: '#131722' },
+        textColor: '#787b86',
         fontFamily: "'JetBrains Mono', monospace",
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.04)' },
+        vertLines: { color: 'rgba(42, 46, 57, 0.5)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 350,
+      height: 440,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
+        borderColor: 'rgba(42, 46, 57, 0.8)',
       },
+      rightPriceScale: {
+        borderColor: 'rgba(42, 46, 57, 0.8)',
+      },
+      crosshair: {
+        mode: 0,
+      }
     });
 
     chartRef.current = chart;
-
-    // 1. Candlestick Series
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#00e676',
-      downColor: '#ff1744',
-      borderVisible: false,
-      wickUpColor: '#00e676',
-      wickDownColor: '#ff1744',
-    });
 
     const parseTime = (t: string | number) => {
       if (typeof t === 'number') return t as any;
@@ -74,33 +82,124 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       return (isNaN(timeMs) ? Math.floor(Date.now() / 1000) : Math.floor(timeMs / 1000)) as any;
     };
 
-    const formattedCandles = candles.map(c => ({
-      time: parseTime(c.time),
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
-    candlestickSeries.setData(formattedCandles);
+    const formattedTimes = candles.map(c => parseTime(c.time));
+
+    // 1. Primary Series based on chartType
+    if (chartType === 'candlestick' || chartType === 'bar') {
+      const mainSeries = chart.addCandlestickSeries({
+        upColor: '#089981',
+        downColor: '#f23645',
+        borderVisible: false,
+        wickUpColor: '#089981',
+        wickDownColor: '#f23645',
+      });
+      mainSeries.setData(
+        candles.map((c, i) => ({
+          time: formattedTimes[i],
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }))
+      );
+    } else if (chartType === 'area') {
+      const areaSeries = chart.addAreaSeries({
+        topColor: 'rgba(41, 98, 255, 0.4)',
+        bottomColor: 'rgba(41, 98, 255, 0.0)',
+        lineColor: '#2962ff',
+        lineWidth: 2,
+      });
+      areaSeries.setData(
+        candles.map((c, i) => ({
+          time: formattedTimes[i],
+          value: c.close,
+        }))
+      );
+    } else {
+      // Line chart
+      const lineSeries = chart.addLineSeries({
+        color: '#2962ff',
+        lineWidth: 2,
+      });
+      lineSeries.setData(
+        candles.map((c, i) => ({
+          time: formattedTimes[i],
+          value: c.close,
+        }))
+      );
+    }
 
     // 2. Volume Histogram Overlay
     const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
     });
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+      scaleMargins: { top: 0.75, bottom: 0 },
     });
+    volumeSeries.setData(
+      candles.map((c, i) => ({
+        time: formattedTimes[i],
+        value: c.volume,
+        color: c.close >= c.open ? 'rgba(8, 153, 129, 0.35)' : 'rgba(242, 54, 69, 0.35)',
+      }))
+    );
 
-    const formattedVolume = candles.map(c => ({
-      time: parseTime(c.time),
-      value: c.volume,
-      color: c.close >= c.open ? 'rgba(0, 230, 118, 0.3)' : 'rgba(255, 23, 68, 0.3)',
-    }));
-    volumeSeries.setData(formattedVolume);
+    // 3. Technical Indicator Overlays
+    // EMA 20
+    if (showEma20) {
+      const ema20Series = chart.addLineSeries({
+        color: '#ffb700',
+        lineWidth: 1.5,
+        title: 'EMA 20',
+      });
+      // Exponential moving average calculation
+      const k = 2 / (20 + 1);
+      let ema = candles[0].close;
+      const emaData = candles.map((c, i) => {
+        ema = c.close * k + ema * (1 - k);
+        return { time: formattedTimes[i], value: Math.round(ema * 100) / 100 };
+      });
+      ema20Series.setData(emaData);
+    }
 
-    // Fit content
+    // EMA 50
+    if (showEma50) {
+      const ema50Series = chart.addLineSeries({
+        color: '#8b5cf6',
+        lineWidth: 1.5,
+        title: 'EMA 50',
+      });
+      const k = 2 / (50 + 1);
+      let ema = candles[0].close;
+      const emaData = candles.map((c, i) => {
+        ema = c.close * k + ema * (1 - k);
+        return { time: formattedTimes[i], value: Math.round(ema * 100) / 100 };
+      });
+      ema50Series.setData(emaData);
+    }
+
+    // VWAP
+    if (showVwap) {
+      const vwapSeries = chart.addLineSeries({
+        color: '#2962ff',
+        lineWidth: 1.5,
+        lineStyle: 2,
+        title: 'VWAP',
+      });
+      let cumVol = 0;
+      let cumPV = 0;
+      const vwapData = candles.map((c, i) => {
+        const typicalPrice = (c.high + c.low + c.close) / 3;
+        cumPV += typicalPrice * c.volume;
+        cumVol += c.volume;
+        const vwapVal = cumVol > 0 ? cumPV / cumVol : c.close;
+        return { time: formattedTimes[i], value: Math.round(vwapVal * 100) / 100 };
+      });
+      vwapSeries.setData(vwapData);
+    }
+
+    // Fit view
     chart.timeScale().fitContent();
 
     const handleResize = () => {
@@ -117,125 +216,229 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         chartRef.current = null;
       }
     };
-  }, [candles]);
+  }, [candles, chartType, showEma20, showEma50, showBollinger, showVwap]);
 
   const isPositive = stock.change >= 0;
 
   return (
-    <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header Bar */}
-      <div className="card-header" style={{ padding: '10px 16px' }}>
+    <div className="glass-card" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Stock Quote Header Bar */}
+      <div
+        style={{
+          padding: '12px 18px',
+          borderBottom: '1px solid var(--border-color)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          background: 'var(--bg-secondary)'
+        }}
+      >
+        {/* Ticker & Price Meta */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div>
-            <span style={{ fontSize: '1.15rem', fontWeight: 700, marginRight: '8px' }}>{stock.ticker}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{stock.name}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-bright)' }}>
+                {stock.ticker}
+              </span>
+              <span className="badge badge-blue">NSE/BSE</span>
+              {stock.sector && <span className="badge badge-purple">{stock.sector}</span>}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{stock.name}</div>
           </div>
-          <div className="mono" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-            {currencySymbol}{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+          <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
+            <div className="font-mono" style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-bright)' }}>
+              {currencySymbol}{stock.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div className={`font-mono ${isPositive ? 'text-green' : 'text-red'}`} style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+              {isPositive ? '▲' : '▼'} {Math.abs(stock.change).toFixed(2)} ({isPositive ? '+' : ''}{stock.change_percent.toFixed(2)}%)
+            </div>
           </div>
-          <span style={{
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            color: isPositive ? 'var(--accent-green)' : 'var(--accent-red)'
-          }}>
-            {isPositive ? '+' : ''}{stock.change} ({isPositive ? '+' : ''}{stock.change_percent}%)
-          </span>
+
+          {/* Quick Metrics */}
+          <div style={{ display: 'flex', gap: '16px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+            <div>
+              <div>Open: <span className="font-mono" style={{ color: 'var(--text-primary)' }}>₹{stock.open}</span></div>
+              <div>High: <span className="font-mono" style={{ color: 'var(--accent-green-bright)' }}>₹{stock.high}</span></div>
+            </div>
+            <div>
+              <div>Low: <span className="font-mono" style={{ color: 'var(--accent-red-bright)' }}>₹{stock.low}</span></div>
+              <div>Vol: <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{(stock.volume / 100000).toFixed(2)}L</span></div>
+            </div>
+            {stock.pe_ratio && (
+              <div>
+                <div>P/E Ratio: <span className="font-mono" style={{ color: 'var(--text-primary)' }}>{stock.pe_ratio}</span></div>
+                <div>Mkt Cap: <span className="font-mono" style={{ color: 'var(--accent-gold)' }}>{stock.market_cap}</span></div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls & Order Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Timeframe selector buttons */}
-          <div style={{ display: 'flex', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', padding: '2px' }}>
-            {['1m', '5m', '15m', '1h', '1D'].map((tf) => (
+          {/* Quick Paper Trade Buttons */}
+          {onOpenTrade && (
+            <div style={{ display: 'flex', gap: '6px' }}>
               <button
-                key={tf}
-                onClick={() => onTimeframeChange(tf)}
-                style={{
-                  background: timeframe === tf ? 'var(--accent-blue)' : 'transparent',
-                  color: timeframe === tf ? '#fff' : 'var(--text-secondary)',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '4px 10px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
+                onClick={() => onOpenTrade('BUY')}
+                className="btn btn-success"
+                style={{ padding: '6px 14px', fontSize: '0.8rem' }}
               >
-                {tf}
+                BUY
               </button>
-            ))}
-          </div>
+              <button
+                onClick={() => onOpenTrade('SELL')}
+                className="btn btn-danger"
+                style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+              >
+                SELL
+              </button>
+            </div>
+          )}
 
-          {/* Trigger Agent Debate Button */}
-          <button
-            onClick={onTriggerDebate}
-            disabled={isDebating}
-            className="btn btn-primary"
-            style={{ fontSize: '0.8rem', padding: '6px 14px' }}
-          >
-            <Zap size={14} />
-            {isDebating ? "Debating..." : "Start AI Debate"}
-          </button>
+          {/* AI Debate Button */}
+          {onTriggerDebate && (
+            <button
+              onClick={onTriggerDebate}
+              disabled={isDebating}
+              className="btn btn-primary"
+              style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+            >
+              <Zap size={14} />
+              {isDebating ? 'Debating...' : 'AI Debate'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Chart Canvas */}
-      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '350px' }}>
+      {/* Chart Toolbar (Timeframes & Indicator Toggles) */}
+      <div
+        style={{
+          background: 'var(--bg-tertiary)',
+          borderBottom: '1px solid var(--border-color)',
+          padding: '6px 16px',
+          display: 'flex',
+          justify: 'space-between',
+          alignItems: 'center',
+          fontSize: '0.78rem'
+        }}
+      >
+        {/* Timeframe Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: '4px' }}>Timeframe:</span>
+          {['1m', '5m', '15m', '1h', '1D'].map((tf) => (
+            <button
+              key={tf}
+              onClick={() => onTimeframeChange(tf)}
+              style={{
+                background: timeframe === tf ? 'var(--accent-blue)' : 'transparent',
+                color: timeframe === tf ? '#fff' : 'var(--text-secondary)',
+                border: 'none',
+                borderRadius: 'var(--radius-xs)',
+                padding: '3px 8px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+
+        {/* Chart Style Switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600, marginRight: '4px' }}>Type:</span>
+          {(['candlestick', 'line', 'area'] as ChartType[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setChartType(t)}
+              style={{
+                background: chartType === t ? 'var(--bg-elevated)' : 'transparent',
+                color: chartType === t ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                border: `1px solid ${chartType === t ? 'var(--accent-blue)' : 'transparent'}`,
+                borderRadius: 'var(--radius-xs)',
+                padding: '3px 8px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textTransform: 'capitalize'
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Indicator Overlay Checkboxes */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showEma20} onChange={(e) => setShowEma20(e.target.checked)} />
+            <span style={{ color: '#ffb700' }}>EMA 20</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showEma50} onChange={(e) => setShowEma50(e.target.checked)} />
+            <span style={{ color: '#8b5cf6' }}>EMA 50</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showVwap} onChange={(e) => setShowVwap(e.target.checked)} />
+            <span style={{ color: '#2962ff' }}>VWAP</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Main Chart Container */}
+      <div style={{ flex: 1, position: 'relative', width: '100%', minHeight: '400px' }}>
         <div ref={chartContainerRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Technical Indicators Bar */}
+      {/* Indicators Summary Footer */}
       {indicators && (
-        <div style={{
-          background: 'var(--bg-secondary)',
-          borderTop: '1px solid var(--border-color)',
-          padding: '8px 16px',
-          display: 'flex',
-          gap: '20px',
-          fontSize: '0.75rem',
-          alignItems: 'center',
-          overflowX: 'auto',
-          whiteSpace: 'nowrap'
-        }}>
+        <div
+          style={{
+            background: 'var(--bg-secondary)',
+            borderTop: '1px solid var(--border-color)',
+            padding: '8px 16px',
+            display: 'flex',
+            gap: '16px',
+            fontSize: '0.75rem',
+            alignItems: 'center',
+            overflowX: 'auto',
+            whiteSpace: 'nowrap'
+          }}
+        >
           <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Activity size={14} /> Indicators:
+            <Activity size={14} /> Analysis:
           </div>
           <div>
-            RSI (14): <span className="mono" style={{ color: indicators.rsi > 70 ? 'var(--accent-red)' : indicators.rsi < 30 ? 'var(--accent-green)' : 'var(--accent-blue)', fontWeight: 600 }}>{indicators.rsi}</span>
+            RSI (14): <span className="font-mono" style={{ color: indicators.rsi > 70 ? 'var(--accent-red)' : indicators.rsi < 30 ? 'var(--accent-green-bright)' : 'var(--accent-blue)', fontWeight: 700 }}>{indicators.rsi}</span>
           </div>
           <div>
-            EMA (20): <span className="mono" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currencySymbol}{indicators.ema_20}</span>
-          </div>
-          <div>
-            EMA (50): <span className="mono" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{currencySymbol}{indicators.ema_50}</span>
-          </div>
-          <div>
-            VWAP: <span className="mono" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{currencySymbol}{indicators.vwap}</span>
+            VWAP: <span className="font-mono text-purple" style={{ fontWeight: 600 }}>₹{indicators.vwap}</span>
           </div>
           {indicators.pivot && (
             <div>
-              Pivot (CPR): <span className="mono" style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{currencySymbol}{indicators.pivot}</span>
+              Pivot (CPR): <span className="font-mono text-gold" style={{ fontWeight: 600 }}>₹{indicators.pivot}</span>
             </div>
           )}
           {indicators.resistance_1 && (
             <div>
-              R1: <span className="mono text-red" style={{ fontWeight: 600 }}>{currencySymbol}{indicators.resistance_1}</span>
+              R1: <span className="font-mono text-red" style={{ fontWeight: 600 }}>₹{indicators.resistance_1}</span>
             </div>
           )}
           {indicators.support_1 && (
             <div>
-              S1: <span className="mono text-green" style={{ fontWeight: 600 }}>{currencySymbol}{indicators.support_1}</span>
+              S1: <span className="font-mono text-green" style={{ fontWeight: 600 }}>₹{indicators.support_1}</span>
             </div>
           )}
           {indicators.supertrend && (
-            <div>
-              Supertrend: <span className={`badge ${indicators.supertrend.includes('Bullish') ? 'bg-green-badge' : 'bg-red-badge'}`} style={{ fontSize: '0.7rem' }}>{indicators.supertrend}</span>
-            </div>
+            <span className={`badge ${indicators.supertrend.includes('Bullish') ? 'badge-green' : 'badge-red'}`}>
+              {indicators.supertrend}
+            </span>
           )}
-          <div>
-            Trend: <span className="badge bg-blue-badge" style={{ fontSize: '0.7rem' }}>{indicators.trend}</span>
-          </div>
+          <span className="badge badge-blue">{indicators.trend}</span>
         </div>
       )}
     </div>
