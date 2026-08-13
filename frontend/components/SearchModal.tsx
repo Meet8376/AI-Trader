@@ -182,7 +182,7 @@ export const SearchModal: React.FC = () => {
             borderTop: '1px solid var(--border-color)',
             background: 'var(--bg-tertiary)',
             display: 'flex',
-            justify: 'space-between',
+            justifyContent: 'space-between',
             alignItems: 'center',
             fontSize: '0.75rem',
             color: 'var(--text-muted)'
