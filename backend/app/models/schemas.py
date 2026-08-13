@@ -40,6 +40,11 @@ class TechnicalIndicators(BaseModel):
     ema_20: float
     ema_50: float
     vwap: Optional[float] = None
+    pivot: Optional[float] = None
+    resistance_1: Optional[float] = None
+    support_1: Optional[float] = None
+    atr: Optional[float] = None
+    supertrend: Optional[str] = None
     trend: str
 
 class AgentOpinion(BaseModel):
@@ -61,6 +66,7 @@ class DebateVerdict(BaseModel):
     consensus_score: float
     target_price: float
     stop_loss: float
+    risk_reward_ratio: Optional[float] = 2.5
     horizon: str
     summary: str
     bull_case: str

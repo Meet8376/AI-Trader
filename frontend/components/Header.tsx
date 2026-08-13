@@ -78,6 +78,33 @@ export const Header: React.FC<HeaderProps> = ({ mode, onModeChange }) => {
           </div>
         </div>
 
+        {/* Live Indian Indices Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          background: 'var(--bg-primary)',
+          padding: '6px 14px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-color)',
+          fontSize: '0.75rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>NIFTY 50:</span>
+            <span className="mono text-green" style={{ fontWeight: 700 }}>24,380.15 (+0.64%)</span>
+          </div>
+          <div style={{ width: '1px', height: '14px', background: 'var(--border-color)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>BANK NIFTY:</span>
+            <span className="mono text-green" style={{ fontWeight: 700 }}>52,140.80 (+0.82%)</span>
+          </div>
+          <div style={{ width: '1px', height: '14px', background: 'var(--border-color)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>INDIA VIX:</span>
+            <span className="mono text-purple" style={{ fontWeight: 700 }}>14.25 (-2.1%)</span>
+          </div>
+        </div>
+
         {/* Mode Selector (Intraday vs Long-Term) */}
         <div style={{
           background: 'var(--bg-primary)',

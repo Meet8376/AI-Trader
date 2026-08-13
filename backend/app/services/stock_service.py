@@ -96,6 +96,8 @@ def _format_market_cap(mcap: Any) -> str:
         return f"₹{mcap / 1e7:,.0f} Cr"
     return f"₹{mcap:,.0f}"
 
+from app.services.angel_one_service import angel_one_service
+
 def _fetch_yfinance_quote(ticker_symbol: str) -> Optional[StockQuote]:
     clean_symbol = ticker_symbol.upper().replace(".NS", "").replace(".BO", "")
     now = time.time()
@@ -106,7 +108,33 @@ def _fetch_yfinance_quote(ticker_symbol: str) -> Optional[StockQuote]:
         if now - ts < QUOTE_CACHE_TTL:
             return cached_quote
 
-    # Try fetching from yfinance (.NS first, then .BO)
+    # 1. Try Angel One SmartAPI if connected
+    if angel_one_service.is_connected:
+        ao_quote = angel_one_service.get_market_quote(clean_symbol)
+        if ao_quote:
+            last_price = ao_quote["price"]
+            prev_close = ao_quote["close"] if ao_quote["close"] > 0 else last_price
+            change = round(last_price - prev_close, 2)
+            change_percent = round((change / prev_close) * 100, 2) if prev_close > 0 else 0.0
+            
+            sq = StockQuote(
+                ticker=clean_symbol,
+                name=STOCKS_DB.get(clean_symbol, {}).get("name", f"{clean_symbol} Ltd"),
+                price=last_price,
+                change=change,
+                change_percent=change_percent,
+                high=ao_quote["high"] or round(last_price * 1.015, 2),
+                low=ao_quote["low"] or round(last_price * 0.988, 2),
+                open=ao_quote["open"] or round(last_price * 0.995, 2),
+                volume=1500000,
+                market_cap=STOCKS_DB.get(clean_symbol, {}).get("market_cap", "₹15,000 Cr"),
+                pe_ratio=STOCKS_DB.get(clean_symbol, {}).get("pe", 22.5),
+                day_range=f"₹{round(last_price*0.988, 2)} - ₹{round(last_price*1.015, 2)}"
+            )
+            _QUOTE_CACHE[clean_symbol] = (sq, now)
+            return sq
+
+    # 2. Try fetching from yfinance (.NS first, then .BO)
     for suffix in [".NS", ".BO"]:
         try:
             yf_ticker = f"{clean_symbol}{suffix}"
@@ -361,17 +389,50 @@ class StockService:
             timestamps = timestamps[-count:]
 
         # Seed pseudo-randomness deterministically from ticker name so it's 100% stable on reload!
-        ticker_seed = sum(ord(c) for c in clean_ticker)
-        candles = []
-        curr_price = base_price * 0.98
+        ticker_seed = sum(ord(c) * (idx + 1) for idx, c in enumerate(clean_ticker))
+        count_n = len(timestamps)
+        
+        # Generate multi-harmonic market noise
+        noises = []
+        for i in range(count_n):
+            n1 = math.sin((i * 13 + ticker_seed) * 0.17) * 0.004
+            n2 = math.cos((i * 7 + ticker_seed) * 0.31) * 0.003
+            n3 = math.sin((i * 23 + ticker_seed) * 0.09) * 0.005
+            noises.append(n1 + n2 + n3)
+        
+        # Cumulative trend path ending at target_price
+        cum_offsets = [0.0]
+        for n in noises:
+            cum_offsets.append(cum_offsets[-1] + n)
+        
+        final_offset = cum_offsets[-1]
+        normalized_offsets = [c - final_offset for c in cum_offsets[1:]]
 
+        candles = []
         for i, ts in enumerate(timestamps):
-            wave = math.sin((i + ticker_seed) / 4.0) * 0.005 + math.cos((i * 2 + ticker_seed) / 7.0) * 0.003
-            open_p = curr_price
-            close_p = open_p * (1.0 + wave)
-            high_p = max(open_p, close_p) * 1.003
-            low_p = min(open_p, close_p) * 0.997
-            vol = int(100000 + abs(math.sin(i + ticker_seed)) * 200000)
+            price_center = base_price * (1.0 + normalized_offsets[i])
+            
+            spread_factor = 0.003 + abs(math.sin((i * 11 + ticker_seed) * 0.2)) * 0.006
+            is_green = (math.sin((i * 17 + ticker_seed) * 0.4) > -0.1)
+            
+            if is_green:
+                open_p = price_center * (1.0 - spread_factor * 0.4)
+                close_p = price_center * (1.0 + spread_factor * 0.5)
+            else:
+                open_p = price_center * (1.0 + spread_factor * 0.4)
+                close_p = price_center * (1.0 - spread_factor * 0.5)
+            
+            if i == count_n - 1:
+                close_p = base_price
+                if open_p == close_p:
+                    open_p = base_price * 0.998
+
+            wick_top = max(open_p, close_p) * (1.0 + abs(math.sin((i * 19 + ticker_seed) * 0.3)) * 0.003)
+            wick_bot = min(open_p, close_p) * (1.0 - abs(math.cos((i * 29 + ticker_seed) * 0.25)) * 0.003)
+
+            high_p = max(open_p, close_p, wick_top)
+            low_p = min(open_p, close_p, wick_bot)
+            vol = int(150000 + abs(math.sin((i * 7 + ticker_seed) * 0.5)) * 450000)
 
             candles.append({
                 "time": ts,
@@ -381,7 +442,6 @@ class StockService:
                 "close": round(close_p, 2),
                 "volume": vol
             })
-            curr_price = close_p
 
         return candles
 

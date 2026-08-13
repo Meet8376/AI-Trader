@@ -185,10 +185,11 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           borderTop: '1px solid var(--border-color)',
           padding: '8px 16px',
           display: 'flex',
-          gap: '24px',
+          gap: '20px',
           fontSize: '0.75rem',
           alignItems: 'center',
-          overflowX: 'auto'
+          overflowX: 'auto',
+          whiteSpace: 'nowrap'
         }}>
           <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <Activity size={14} /> Indicators:
@@ -205,6 +206,26 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           <div>
             VWAP: <span className="mono" style={{ color: 'var(--accent-purple)', fontWeight: 600 }}>{currencySymbol}{indicators.vwap}</span>
           </div>
+          {indicators.pivot && (
+            <div>
+              Pivot (CPR): <span className="mono" style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{currencySymbol}{indicators.pivot}</span>
+            </div>
+          )}
+          {indicators.resistance_1 && (
+            <div>
+              R1: <span className="mono text-red" style={{ fontWeight: 600 }}>{currencySymbol}{indicators.resistance_1}</span>
+            </div>
+          )}
+          {indicators.support_1 && (
+            <div>
+              S1: <span className="mono text-green" style={{ fontWeight: 600 }}>{currencySymbol}{indicators.support_1}</span>
+            </div>
+          )}
+          {indicators.supertrend && (
+            <div>
+              Supertrend: <span className={`badge ${indicators.supertrend.includes('Bullish') ? 'bg-green-badge' : 'bg-red-badge'}`} style={{ fontSize: '0.7rem' }}>{indicators.supertrend}</span>
+            </div>
+          )}
           <div>
             Trend: <span className="badge bg-blue-badge" style={{ fontSize: '0.7rem' }}>{indicators.trend}</span>
           </div>

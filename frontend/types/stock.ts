@@ -39,5 +39,10 @@ export interface TechnicalIndicators {
   ema_20: number;
   ema_50: number;
   vwap: number;
+  pivot?: number;
+  resistance_1?: number;
+  support_1?: number;
+  atr?: number;
+  supertrend?: string;
   trend: string;
 }

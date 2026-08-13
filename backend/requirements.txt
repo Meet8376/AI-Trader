@@ -11,4 +11,5 @@ numpy>=1.26.0
 python-dotenv>=1.0.0
 async-timeout>=4.0.3
 yfinance>=0.2.36
-
+smartapi-python>=1.4.0
+pyotp>=2.9.0

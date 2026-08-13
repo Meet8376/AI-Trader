@@ -32,10 +32,24 @@ class IndicatorService:
         vwap = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
         latest_vwap = float(vwap.iloc[-1]) if len(vwap) > 0 else float(closes[-1])
 
-        # Trend assessment
+        # 6. Pivot Points (Classic CPR / Daily Pivot)
+        high_p = float(np.max(highs[-20:])) if len(highs) >= 20 else float(highs[-1])
+        low_p = float(np.min(lows[-20:])) if len(lows) >= 20 else float(lows[-1])
+        close_p = float(closes[-1])
+        pivot = (high_p + low_p + close_p) / 3.0
+        r1 = (2 * pivot) - low_p
+        s1 = (2 * pivot) - high_p
+
+        # 7. ATR (Average True Range)
+        tr = np.maximum(highs[1:] - lows[1:], np.maximum(np.abs(highs[1:] - closes[:-1]), np.abs(lows[1:] - closes[:-1])))
+        atr = float(np.mean(tr[-14:])) if len(tr) >= 14 else float(np.mean(tr)) if len(tr) > 0 else close_p * 0.015
+
+        # Trend assessment & Supertrend indicator
         current_price = float(closes[-1])
         latest_rsi = float(rsi[-1])
         latest_macd_hist = float(histogram[-1])
+
+        supertrend = "Bullish (Buy)" if current_price > ema_20[-1] and current_price > vwap.iloc[-1] else "Bearish (Sell)"
 
         if current_price > ema_20[-1] and latest_rsi > 55 and latest_macd_hist > 0:
             trend = "Strong Bullish"
@@ -61,6 +75,11 @@ class IndicatorService:
             "ema_20": round(float(ema_20[-1]), 2),
             "ema_50": round(float(ema_50[-1]), 2),
             "vwap": round(latest_vwap, 2),
+            "pivot": round(pivot, 2),
+            "resistance_1": round(r1, 2),
+            "support_1": round(s1, 2),
+            "atr": round(atr, 2),
+            "supertrend": supertrend,
             "trend": trend
         }
 

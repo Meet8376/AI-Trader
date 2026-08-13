@@ -12,6 +12,7 @@ interface DebatePanelProps {
   verdict: DebateVerdict | null;
   isDebating: boolean;
   onRunDebate: () => void;
+  onOpenCalculator?: () => void;
 }
 
 export const DebatePanel: React.FC<DebatePanelProps> = ({
@@ -20,7 +21,8 @@ export const DebatePanel: React.FC<DebatePanelProps> = ({
   opinions,
   verdict,
   isDebating,
-  onRunDebate
+  onRunDebate,
+  onOpenCalculator
 }) => {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const currencySymbol = '₹';
@@ -197,12 +199,13 @@ export const DebatePanel: React.FC<DebatePanelProps> = ({
             {/* Target & SL Box */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
+              gridTemplateColumns: '1fr 1fr 1fr',
               gap: '8px',
               background: 'var(--bg-primary)',
               padding: '8px 12px',
               borderRadius: 'var(--radius-sm)',
-              fontSize: '0.78rem'
+              fontSize: '0.78rem',
+              marginBottom: '10px'
             }}>
               <div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Price Target</div>
@@ -216,7 +219,24 @@ export const DebatePanel: React.FC<DebatePanelProps> = ({
                   <ArrowDownRight size={14} /> {currencySymbol}{verdict.stop_loss}
                 </div>
               </div>
+              <div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Risk : Reward</div>
+                <div className="mono text-purple" style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                  1 : {verdict.risk_reward_ratio || 2.5}
+                </div>
+              </div>
             </div>
+
+            {/* Position Calculator Button */}
+            {onOpenCalculator && (
+              <button
+                className="btn btn-primary"
+                onClick={onOpenCalculator}
+                style={{ width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}
+              >
+                🧮 Calculate Share Position & Risk (₹)
+              </button>
+            )}
           </div>
         )}
       </div>

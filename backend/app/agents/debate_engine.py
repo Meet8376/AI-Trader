@@ -20,13 +20,13 @@ from app.agents.prompts import (
 logger = logging.getLogger(__name__)
 
 async def call_gemini_llm(prompt: str, system_instruction: str = "") -> Optional[str]:
-    """Call Google Gemini API using REST endpoint."""
+    """Call Google Gemini API using REST endpoint with model fallback."""
     api_key = settings.GEMINI_API_KEY
     if not api_key:
         return None
 
-    # Supported model endpoints: gemini-2.5-flash, gemini-1.5-flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # Fallback model endpoints in priority order
+    models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro"]
     
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -42,20 +42,23 @@ async def call_gemini_llm(prompt: str, system_instruction: str = "") -> Optional
         }
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=12.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            if response.status_code == 200:
-                data = response.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
-            else:
-                logger.warning(f"Gemini API returned status {response.status_code}: {response.text}")
-    except Exception as e:
-        logger.error(f"Error calling Gemini LLM API: {e}")
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        for model in models:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                response = await client.post(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "").strip()
+                else:
+                    logger.warning(f"Gemini API model {model} returned status {response.status_code}")
+            except Exception as e:
+                logger.warning(f"Error calling Gemini model {model}: {e}")
+
     return None
 
 
@@ -226,6 +229,10 @@ class MultiAgentDebateEngine:
         final_verdict_signal = SignalType.BUY if bull_opinion.confidence > bear_opinion.confidence else SignalType.HOLD
         target_p = round(price * (1.035 if mode == TradingMode.INTRADAY else 1.14), 2)
         sl_p = round(price * (0.985 if mode == TradingMode.INTRADAY else 0.94), 2)
+        
+        potential_gain = abs(target_p - price)
+        potential_risk = abs(price - sl_p)
+        rr_ratio = round(potential_gain / potential_risk, 2) if potential_risk > 0 else 2.5
 
         verdict = DebateVerdict(
             ticker=ticker,
@@ -235,6 +242,7 @@ class MultiAgentDebateEngine:
             consensus_score=8.7,
             target_price=target_p,
             stop_loss=sl_p,
+            risk_reward_ratio=rr_ratio,
             horizon="1 - 3 Days (Intraday Momentum)" if mode == TradingMode.INTRADAY else "3 - 6 Months (Position Build)",
             summary=judge_ai_text or f"The AI Trading Floor reaches consensus: {final_verdict_signal.value} {ticker} at {price}. Bullish technical confluence outweighs short-term bear warnings.",
             bull_case=bull_opinion.full_argument,

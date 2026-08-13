@@ -27,6 +27,7 @@ export interface DebateVerdict {
   consensus_score: number;
   target_price: number;
   stop_loss: number;
+  risk_reward_ratio?: number;
   horizon: string;
   summary: string;
   bull_case: string;

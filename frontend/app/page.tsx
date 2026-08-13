@@ -6,6 +6,7 @@ import { Sidebar } from '../components/Sidebar';
 import { CandlestickChart } from '../components/CandlestickChart';
 import { DebatePanel } from '../components/DebatePanel';
 import { TopPicks } from '../components/TopPicks';
+import { PositionSizerModal } from '../components/PositionSizerModal';
 import { StockQuote, CandleData, TechnicalIndicators, TradingMode } from '../types/stock';
 import { AgentOpinion, DebateVerdict, TopPick } from '../types/debate';
 import { fetchStocks, fetchStockCandles, analyzeStock, fetchTopPicks } from '../lib/api';
@@ -37,6 +38,7 @@ export default function DashboardPage() {
   const [opinions, setOpinions] = useState<AgentOpinion[]>([]);
   const [verdict, setVerdict] = useState<DebateVerdict | null>(null);
   const [isDebating, setIsDebating] = useState<boolean>(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState<boolean>(false);
   
   const [topPicks, setTopPicks] = useState<TopPick[]>([]);
 
@@ -101,19 +103,48 @@ export default function DashboardPage() {
         }
         
         const recentSlots = timestamps.slice(-60);
+        const countN = recentSlots.length;
+        const seed = selectedTicker.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
+
+        // Generate multi-harmonic organic market noise path ending at activeStock.price
+        const noises = recentSlots.map((_, i) => {
+          const n1 = Math.sin((i * 13 + seed) * 0.17) * 0.004;
+          const n2 = Math.cos((i * 7 + seed) * 0.31) * 0.003;
+          const n3 = Math.sin((i * 23 + seed) * 0.09) * 0.005;
+          return n1 + n2 + n3;
+        });
+
+        const cumOffsets = [0];
+        noises.forEach(n => cumOffsets.push(cumOffsets[cumOffsets.length - 1] + n));
+        const finalOffset = cumOffsets[cumOffsets.length - 1];
+        const normalizedOffsets = cumOffsets.slice(1).map(c => c - finalOffset);
 
         const mockCandles: CandleData[] = recentSlots.map((ts, i) => {
-          const wave = Math.sin((i + selectedTicker.length) / 5) * 0.015;
-          const base = activeStock.price * (0.97 + wave);
+          const priceCenter = activeStock.price * (1.0 + normalizedOffsets[i]);
+          const spreadFactor = 0.003 + Math.abs(Math.sin((i * 11 + seed) * 0.2)) * 0.006;
+          const isGreen = Math.sin((i * 17 + seed) * 0.4) > -0.1;
+
+          let openP = isGreen ? priceCenter * (1.0 - spreadFactor * 0.4) : priceCenter * (1.0 + spreadFactor * 0.4);
+          let closeP = isGreen ? priceCenter * (1.0 + spreadFactor * 0.5) : priceCenter * (1.0 - spreadFactor * 0.5);
+
+          if (i === countN - 1) {
+            closeP = activeStock.price;
+            if (openP === closeP) openP = activeStock.price * 0.998;
+          }
+
+          const wickTop = Math.max(openP, closeP) * (1.0 + Math.abs(Math.sin((i * 19 + seed) * 0.3)) * 0.003);
+          const wickBot = Math.min(openP, closeP) * (1.0 - Math.abs(Math.cos((i * 29 + seed) * 0.25)) * 0.003);
+
           return {
             time: ts,
-            open: round(base),
-            high: round(base * 1.004),
-            low: round(base * 0.996),
-            close: round(base * 1.001),
-            volume: Math.floor(100000 + Math.abs(Math.sin(i)) * 150000)
+            open: round(openP),
+            high: round(Math.max(openP, closeP, wickTop)),
+            low: round(Math.min(openP, closeP, wickBot)),
+            close: round(closeP),
+            volume: Math.floor(150000 + Math.abs(Math.sin((i * 7 + seed) * 0.5)) * 450000)
           };
         });
+
         setCandles(mockCandles);
         setIndicators({
           rsi: 64.2,
@@ -122,6 +153,11 @@ export default function DashboardPage() {
           ema_20: round(activeStock.price * 0.992),
           ema_50: round(activeStock.price * 0.978),
           vwap: round(activeStock.price * 0.996),
+          pivot: round(activeStock.price * 0.998),
+          resistance_1: round(activeStock.price * 1.015),
+          support_1: round(activeStock.price * 0.985),
+          atr: round(activeStock.price * 0.012),
+          supertrend: 'Bullish (Buy)',
           trend: 'Strong Bullish'
         });
       }
@@ -341,6 +377,7 @@ export default function DashboardPage() {
             verdict={verdict}
             isDebating={isDebating}
             onRunDebate={handleTriggerDebate}
+            onOpenCalculator={() => setIsCalculatorOpen(true)}
           />
         </main>
       ) : (
@@ -361,6 +398,14 @@ export default function DashboardPage() {
           />
         </main>
       )}
+
+      {/* Position Sizer & Risk Calculator Modal */}
+      <PositionSizerModal
+        stock={activeStock}
+        verdict={verdict}
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+      />
     </div>
   );
 

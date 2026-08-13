@@ -25,6 +25,12 @@ app.include_router(analyze.router)
 app.include_router(recommendations.router)
 app.include_router(websocket.router)
 
+from app.services.angel_one_service import angel_one_service
+
+@app.on_event("startup")
+async def startup_event():
+    angel_one_service.initialize()
+
 @app.get("/")
 def root():
     return {
