@@ -43,19 +43,17 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
   const now = new Date();
   const timestamps: string[] = [];
   let dayOffset = 0;
-  
+
   while (timestamps.length < 60) {
     const d = new Date(now.getTime() - dayOffset * 86400000);
-    const dayOfWeek = d.getDay(); // 0 = Sun, 6 = Sat
+    const dayOfWeek = d.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const dateStr = String(d.getDate()).padStart(2, '0');
-      
       const daySlots: string[] = [];
-      let m = 9 * 60 + 15; // 09:15 AM IST
-      const endM = 15 * 60 + 30; // 03:30 PM IST
-      
+      let m = 9 * 60 + 15;
+      const endM = 15 * 60 + 30;
       while (m <= endM) {
         const hh = String(Math.floor(m / 60)).padStart(2, '0');
         const mm = String(m % 60).padStart(2, '0');
@@ -66,22 +64,50 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
     }
     dayOffset++;
   }
-  
+
   const recentSlots = timestamps.slice(-60);
-  const basePrice = 1250.0;
-  
+
+  // Deterministic seed from ticker so chart is stable on reload
+  const tickerSeed = ticker.split('').reduce((acc, c, i) => acc + c.charCodeAt(0) * (i + 1), 0);
+
+  // Use stock's known price or fallback 1250
+  const KNOWN_PRICES: Record<string, number> = {
+    RELIANCE: 2985.40, TCS: 4180.20, HDFCBANK: 1645.10, ICICIBANK: 1210.80,
+    BHARTIARTL: 1475.25, INFY: 1820.65, SBIN: 845.75, ITC: 492.50,
+    HINDUNILVR: 2720.00, LT: 3615.00, TATAMOTORS: 1055.30, AXISBANK: 1185.30,
+    KOTAKBANK: 1790.40, BAJFINANCE: 6840.00, NTPC: 415.60, ONGC: 325.40,
+    SUNPHARMA: 1725.30, TITAN: 3480.00, ZOMATO: 265.40, WIPRO: 535.90,
+  };
+  const basePrice = KNOWN_PRICES[ticker.toUpperCase()] ?? 1250.0;
+
+  // Realistic financial random walk (NO sine waves)
+  const returns: number[] = [];
+  let prev = 0;
+  for (let i = 0; i < recentSlots.length; i++) {
+    const h = ((i * 2654435761 + tickerSeed * 1013904223) >>> 0);
+    const raw = (h / 4294967296) - 0.5;
+    const r = 0.35 * prev + 0.65 * (raw * 0.008);
+    returns.push(r);
+    prev = r;
+  }
+
+  // Build cumulative multipliers and anchor final price to basePrice
+  const mults: number[] = [1.0];
+  for (const r of returns) mults.push(mults[mults.length - 1] * (1 + r));
+  const finalMult = mults[mults.length - 1];
+  const adj = mults.slice(1).map(m => m / finalMult);
+
   const candles: CandleData[] = recentSlots.map((ts, i) => {
-    const p = basePrice + Math.sin(i / 5) * 25;
-    return {
-      time: ts,
-      open: round(p),
-      high: round(p + 8.5),
-      low: round(p - 8.5),
-      close: round(p + 3.2),
-      volume: Math.floor(100000 + Math.abs(Math.sin(i)) * 150000)
-    };
+    const close = round(basePrice * adj[i]);
+    const open = i > 0 ? round(basePrice * adj[i - 1]) : round(close * 0.998);
+    const hv = ((i * 1103515245 + tickerSeed) >>> 0) / 4294967296;
+    const high = round(Math.max(open, close) * (1 + hv * 0.003));
+    const low = round(Math.min(open, close) * (1 - (1 - hv) * 0.003));
+    const vh = ((i * 1664525 + tickerSeed * 22695477) >>> 0) / 4294967296;
+    return { time: ts, open, high, low, close, volume: Math.floor(120000 + vh * 450000) };
   });
 
+  const lastClose = candles[candles.length - 1]?.close ?? basePrice;
   return {
     ticker,
     timeframe,
@@ -89,10 +115,10 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
     indicators: {
       rsi: 64.2,
       macd: { macd: 12.8, signal: 9.4, histogram: 3.4 },
-      bollinger: { upper: round(basePrice * 1.03), middle: round(basePrice), lower: round(basePrice * 0.97) },
-      ema_20: round(basePrice * 0.992),
-      ema_50: round(basePrice * 0.978),
-      vwap: round(basePrice * 0.995),
+      bollinger: { upper: round(lastClose * 1.025), middle: round(lastClose), lower: round(lastClose * 0.975) },
+      ema_20: round(lastClose * 0.992),
+      ema_50: round(lastClose * 0.978),
+      vwap: round(lastClose * 0.995),
       trend: 'Strong Bullish'
     }
   };
