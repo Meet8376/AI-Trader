@@ -103,45 +103,40 @@ export default function DashboardPage() {
         }
         
         const recentSlots = timestamps.slice(-60);
-        const countN = recentSlots.length;
         const seed = selectedTicker.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
 
-        // Generate multi-harmonic organic market noise path ending at activeStock.price
-        const noises = recentSlots.map((_, i) => {
-          const n1 = Math.sin((i * 13 + seed) * 0.17) * 0.004;
-          const n2 = Math.cos((i * 7 + seed) * 0.31) * 0.003;
-          const n3 = Math.sin((i * 23 + seed) * 0.09) * 0.005;
-          return n1 + n2 + n3;
-        });
+        // Realistic financial random walk with momentum & volatility (NO Math.sin)
+        const returns: number[] = [];
+        let prevR = 0;
+        for (let i = 0; i < recentSlots.length; i++) {
+          const h = ((i * 2654435761 + seed * 1013904223) >>> 0);
+          const raw = (h / 4294967296) - 0.5;
+          const r = 0.35 * prevR + 0.65 * (raw * 0.008);
+          returns.push(r);
+          prevR = r;
+        }
 
-        const cumOffsets = [0];
-        noises.forEach(n => cumOffsets.push(cumOffsets[cumOffsets.length - 1] + n));
-        const finalOffset = cumOffsets[cumOffsets.length - 1];
-        const normalizedOffsets = cumOffsets.slice(1).map(c => c - finalOffset);
+        const cumMults: number[] = [1.0];
+        for (const r of returns) cumMults.push(cumMults[cumMults.length - 1] * (1 + r));
+        const finalM = cumMults[cumMults.length - 1];
+        const adjMults = cumMults.slice(1).map(m => m / finalM);
 
+        const baseP = activeStock.price;
         const mockCandles: CandleData[] = recentSlots.map((ts, i) => {
-          const priceCenter = activeStock.price * (1.0 + normalizedOffsets[i]);
-          const spreadFactor = 0.003 + Math.abs(Math.sin((i * 11 + seed) * 0.2)) * 0.006;
-          const isGreen = Math.sin((i * 17 + seed) * 0.4) > -0.1;
-
-          let openP = isGreen ? priceCenter * (1.0 - spreadFactor * 0.4) : priceCenter * (1.0 + spreadFactor * 0.4);
-          let closeP = isGreen ? priceCenter * (1.0 + spreadFactor * 0.5) : priceCenter * (1.0 - spreadFactor * 0.5);
-
-          if (i === countN - 1) {
-            closeP = activeStock.price;
-            if (openP === closeP) openP = activeStock.price * 0.998;
-          }
-
-          const wickTop = Math.max(openP, closeP) * (1.0 + Math.abs(Math.sin((i * 19 + seed) * 0.3)) * 0.003);
-          const wickBot = Math.min(openP, closeP) * (1.0 - Math.abs(Math.cos((i * 29 + seed) * 0.25)) * 0.003);
+          const closeP = round(baseP * adjMults[i]);
+          const openP = i > 0 ? round(baseP * adjMults[i - 1]) : round(closeP * 0.998);
+          const hv = ((i * 1103515245 + seed) >>> 0) / 4294967296;
+          const highP = round(Math.max(openP, closeP) * (1 + hv * 0.003));
+          const lowP = round(Math.min(openP, closeP) * (1 - (1 - hv) * 0.003));
+          const vh = ((i * 1664525 + seed * 22695477) >>> 0) / 4294967296;
 
           return {
             time: ts,
-            open: round(openP),
-            high: round(Math.max(openP, closeP, wickTop)),
-            low: round(Math.min(openP, closeP, wickBot)),
-            close: round(closeP),
-            volume: Math.floor(150000 + Math.abs(Math.sin((i * 7 + seed) * 0.5)) * 450000)
+            open: openP,
+            high: highP,
+            low: lowP,
+            close: closeP,
+            volume: Math.floor(120000 + vh * 450000)
           };
         });
 

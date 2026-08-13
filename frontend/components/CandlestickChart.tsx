@@ -67,8 +67,15 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       wickDownColor: '#ff1744',
     });
 
+    const parseTime = (t: string | number) => {
+      if (typeof t === 'number') return t as any;
+      const isoStr = t.includes('T') ? t : t.replace(' ', 'T');
+      const timeMs = new Date(isoStr).getTime();
+      return (isNaN(timeMs) ? Math.floor(Date.now() / 1000) : Math.floor(timeMs / 1000)) as any;
+    };
+
     const formattedCandles = candles.map(c => ({
-      time: Math.floor(new Date(c.time).getTime() / 1000) as any,
+      time: parseTime(c.time),
       open: c.open,
       high: c.high,
       low: c.low,
@@ -87,7 +94,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     });
 
     const formattedVolume = candles.map(c => ({
-      time: Math.floor(new Date(c.time).getTime() / 1000) as any,
+      time: parseTime(c.time),
       value: c.volume,
       color: c.close >= c.open ? 'rgba(0, 230, 118, 0.3)' : 'rgba(255, 23, 68, 0.3)',
     }));

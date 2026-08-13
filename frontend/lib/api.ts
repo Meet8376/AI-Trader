@@ -141,6 +141,22 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
     console.warn("Backend debate unreachable, using client-side Indian stock debate generator");
   }
 
+  const KNOWN_PRICES: Record<string, number> = {
+    RELIANCE: 2985.40, TCS: 4180.20, HDFCBANK: 1645.10, ICICIBANK: 1210.80,
+    BHARTIARTL: 1475.25, INFY: 1820.65, SBIN: 845.75, ITC: 492.50,
+    HINDUNILVR: 2720.00, LT: 3615.00, TATAMOTORS: 1055.30, AXISBANK: 1185.30,
+    KOTAKBANK: 1790.40, BAJFINANCE: 6840.00, NTPC: 415.60, ONGC: 325.40,
+    SUNPHARMA: 1725.30, TITAN: 3480.00, ZOMATO: 265.40, WIPRO: 535.90,
+  };
+  const price = KNOWN_PRICES[ticker.toUpperCase()] ?? 1450.00;
+  const isIntraday = mode === 'intraday';
+
+  const target1 = round(price * (isIntraday ? 1.03 : 1.12));
+  const target2 = round(price * (isIntraday ? 1.05 : 1.20));
+  const stopLoss = round(price * (isIntraday ? 0.985 : 0.94));
+  const targetFinal = round(price * (isIntraday ? 1.035 : 1.15));
+  const currSym = '₹';
+
   return {
     ticker,
     mode,
@@ -153,11 +169,11 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
         signal: 'BUY',
         confidence: 88,
         key_points: [
-          'RSI (14) at 64.2 confirming clean bullish continuation on NSE chart.',
-          'Price holding firmly above EMA(20) dynamic intraday support.',
+          `RSI (14) confirming clean bullish continuation on ${ticker} NSE chart.`,
+          `Price holding firmly above EMA(20) dynamic intraday support at ${currSym}${round(price * 0.992)}.`,
           'VWAP volume profile heavily favoring buyers across Indian exchanges.'
         ],
-        technical_targets: { entry: 1250, target_1: 1290, target_2: 1330, stop_loss: 1230 },
+        technical_targets: { entry: price, target_1: target1, target_2: target2, stop_loss: stopLoss },
         full_argument: `Technical analysis for ${ticker} on NSE/BSE confirms a high-probability bullish structure.`
       },
       {
@@ -182,7 +198,7 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
         confidence: 91,
         key_points: [
           'Confluence of VWAP support, RSI momentum, and strong DII institutional backing.',
-          `High conviction BUY setup with projected target upside on NSE.`
+          `Target price projection: ${currSym}${targetFinal} on NSE.`
         ],
         full_argument: `High conviction BUY recommendation for ${ticker} across Indian technicals and fundamentals!`
       },
@@ -194,7 +210,7 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
         signal: 'HOLD',
         confidence: 64,
         key_points: [
-          'Overhead supply zone near immediate swing high resistance.',
+          `Overhead supply zone near immediate swing high resistance (${currSym}${target1}).`,
           'Tight stop-loss mandatory to guard against RBI policy rate volatility.'
         ],
         full_argument: `Caution advised near supply zone resistance on BSE order book.`
@@ -206,10 +222,10 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
       verdict: 'BUY',
       confidence: 86,
       consensus_score: 8.8,
-      target_price: 1295,
-      stop_loss: 1230,
-      horizon: mode === 'intraday' ? '1-3 Days (Intraday Momentum)' : '3-6 Months (Position Build)',
-      summary: `The Gemini AI Trading Floor reaches consensus: BUY ${ticker} on NSE/BSE. Technical momentum and domestic institutional order flow outweigh short-term bear warnings.`,
+      target_price: targetFinal,
+      stop_loss: stopLoss,
+      horizon: isIntraday ? '1-3 Days (Intraday Momentum)' : '3-6 Months (Position Build)',
+      summary: `The Gemini AI Trading Floor reaches consensus: BUY ${ticker} at ${currSym}${price} on NSE/BSE. Technical momentum and domestic institutional order flow outweigh short-term bear warnings.`,
       bull_case: 'Technical breakout supported by strong DII volume.',
       bear_case: 'Overhead supply near key resistance level.'
     }
