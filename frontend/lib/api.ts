@@ -5,10 +5,17 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function fetchStocks(): Promise<StockQuote[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/stocks`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
+    const targetUrl = `${API_BASE_URL}/api/stocks`;
+    const res = await fetch(targetUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`🟢 [API CONNECTED] Live stock quotes loaded from backend (${targetUrl}):`, data.length, "stocks");
+      return data;
+    } else {
+      console.warn(`⚠️ [API HTTP ${res.status}] Backend returned error, using fallback catalog`);
+    }
   } catch (e) {
-    console.warn("Backend API unreachable, using Indian NSE/BSE stock service fallback");
+    console.warn(`⚠️ [API UNREACHABLE] Could not connect to ${API_BASE_URL}/api/stocks. Using fallback catalog. Error:`, e);
   }
   
   // Comprehensive Indian NSE & BSE Fallback Stock Catalog
@@ -33,10 +40,15 @@ export async function fetchStockCandles(ticker: string, timeframe: string = '15m
   indicators: TechnicalIndicators;
 }> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/stocks/${ticker}/candles?timeframe=${timeframe}`, { cache: 'no-store' });
-    if (res.ok) return await res.json();
+    const targetUrl = `${API_BASE_URL}/api/stocks/${ticker}/candles?timeframe=${timeframe}`;
+    const res = await fetch(targetUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`🟢 [API CONNECTED] Live candles loaded for ${ticker} (${timeframe}) from backend`);
+      return data;
+    }
   } catch (e) {
-    console.warn("Backend candles unreachable, generating Indian stock fallback candles");
+    console.warn(`⚠️ [API UNREACHABLE] Could not fetch candles from ${API_BASE_URL} for ${ticker}. Using client generator.`);
   }
 
   // Generate authentic Indian market session timestamps based on timeframe
@@ -139,14 +151,19 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
   verdict: DebateVerdict;
 }> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/analyze`, {
+    const targetUrl = `${API_BASE_URL}/api/analyze`;
+    const res = await fetch(targetUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker, mode }),
     });
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      console.log(`🟢 [API CONNECTED] AI Debate Floor verdict loaded for ${ticker} from backend`);
+      return data;
+    }
   } catch (e) {
-    console.warn("Backend debate unreachable, using client-side Indian stock debate generator");
+    console.warn(`⚠️ [API UNREACHABLE] Could not reach AI debate backend at ${API_BASE_URL}. Using client debate generator.`);
   }
 
   const KNOWN_PRICES: Record<string, number> = {
@@ -242,13 +259,15 @@ export async function analyzeStock(ticker: string, mode: TradingMode): Promise<{
 
 export async function fetchTopPicks(mode: TradingMode): Promise<TopPick[]> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/recommendations?mode=${mode}`, { cache: 'no-store' });
+    const targetUrl = `${API_BASE_URL}/api/recommendations?mode=${mode}`;
+    const res = await fetch(targetUrl, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
+      console.log(`🟢 [API CONNECTED] Live top recommendations loaded from backend (${targetUrl})`);
       return data.top_picks;
     }
   } catch (e) {
-    console.warn("Backend recommendations unreachable, using Indian stock fallback picks");
+    console.warn(`⚠️ [API UNREACHABLE] Could not fetch recommendations from ${API_BASE_URL}. Using fallback recommendations.`);
   }
 
   return [
