@@ -15,6 +15,12 @@ export interface StockQuote {
   day_range?: string;
   sector?: string;
   exchange?: string;
+  high_52w?: number;
+  low_52w?: number;
+  avg_volume?: number;
+  beta?: number;
+  dividend_yield?: number;
+  eps?: number;
 }
 
 export interface IndexQuote {

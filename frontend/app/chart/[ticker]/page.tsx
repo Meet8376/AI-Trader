@@ -298,7 +298,7 @@ export default function ChartPage() {
             </div>
 
             {bottomTab === 'overview' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '0.82rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', fontSize: '0.82rem' }}>
                 <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
                   <div style={{ color: 'var(--text-secondary)' }}>Market Cap</div>
                   <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)', marginTop: '2px' }}>{activeStock.market_cap || '₹15,000 Cr'}</div>
@@ -309,7 +309,33 @@ export default function ChartPage() {
                 </div>
                 <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
                   <div style={{ color: 'var(--text-secondary)' }}>52W High / Low</div>
-                  <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)', marginTop: '2px' }}>₹{Math.round(activeStock.price * 1.15)} / ₹{Math.round(activeStock.price * 0.8)}</div>
+                  <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)', marginTop: '2px' }}>
+                    ₹{activeStock.high_52w || Math.round(activeStock.price * 1.15)} / ₹{activeStock.low_52w || Math.round(activeStock.price * 0.8)}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
+                  <div style={{ color: 'var(--text-secondary)' }}>Avg Volume (20D)</div>
+                  <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)', marginTop: '2px' }}>
+                    {activeStock.avg_volume ? `${(activeStock.avg_volume / 100000).toFixed(2)}L` : '24.5L'}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
+                  <div style={{ color: 'var(--text-secondary)' }}>Beta (Volatility)</div>
+                  <div className="font-mono text-gold" style={{ fontWeight: 700, marginTop: '2px' }}>
+                    {activeStock.beta || 1.12}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
+                  <div style={{ color: 'var(--text-secondary)' }}>Dividend Yield</div>
+                  <div className="font-mono text-green" style={{ fontWeight: 700, marginTop: '2px' }}>
+                    {activeStock.dividend_yield ? `${activeStock.dividend_yield}%` : '1.45%'}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
+                  <div style={{ color: 'var(--text-secondary)' }}>TTM EPS</div>
+                  <div className="font-mono" style={{ fontWeight: 700, color: 'var(--text-bright)', marginTop: '2px' }}>
+                    ₹{activeStock.eps || Math.round(activeStock.price / (activeStock.pe_ratio || 22.5))}
+                  </div>
                 </div>
                 <div style={{ background: 'var(--bg-tertiary)', padding: '10px', borderRadius: 'var(--radius-xs)' }}>
                   <div style={{ color: 'var(--text-secondary)' }}>Exchange</div>
