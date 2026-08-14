@@ -30,6 +30,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const [chartType, setChartType] = useState<ChartType>('candlestick');
   const [showEma20, setShowEma20] = useState(true);
@@ -48,6 +49,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       chartRef.current = null;
     }
 
+    const containerH = chartContainerRef.current.clientHeight || 480;
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#131722' },
@@ -59,18 +61,24 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         horzLines: { color: 'rgba(42, 46, 57, 0.5)' },
       },
       width: chartContainerRef.current.clientWidth,
-      height: 440,
+      height: containerH,
       timeScale: {
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: timeframe === '1m',
         borderColor: 'rgba(42, 46, 57, 0.8)',
+        rightOffset: 5,
+        barSpacing: timeframe === '1m' ? 4 : timeframe === '5m' ? 5 : timeframe === '15m' ? 6 : 8,
+        fixLeftEdge: false,
+        fixRightEdge: false,
       },
       rightPriceScale: {
         borderColor: 'rgba(42, 46, 57, 0.8)',
       },
       crosshair: {
         mode: 0,
-      }
+      },
+      handleScale: true,
+      handleScroll: true,
     });
 
     chartRef.current = chart;
@@ -153,7 +161,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         lineWidth: 1.5,
         title: 'EMA 20',
       });
-      // Exponential moving average calculation
       const k = 2 / (20 + 1);
       let ema = candles[0].close;
       const emaData = candles.map((c, i) => {
@@ -199,24 +206,51 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       vwapSeries.setData(vwapData);
     }
 
-    // Fit view
-    chart.timeScale().fitContent();
-
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
+    // Set visible range: show a meaningful window per timeframe, scroll to latest
+    const VISIBLE_BARS: Record<string, number> = {
+      '1m':  100,
+      '5m':  78,
+      '15m': 60,
+      '1h':  60,
+      '1D':  60,
     };
-    window.addEventListener('resize', handleResize);
+    const visibleBars = VISIBLE_BARS[timeframe] ?? 60;
+    const totalCandles = candles.length;
+
+    if (totalCandles > 0) {
+      const lastTime = formattedTimes[totalCandles - 1];
+      const firstVisibleTime = formattedTimes[Math.max(0, totalCandles - visibleBars)];
+      chart.timeScale().setVisibleRange({
+        from: firstVisibleTime,
+        to: lastTime,
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
+
+    // Disconnect any previous ResizeObserver
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+    }
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (chartRef.current) {
+          const { width, height } = entry.contentRect;
+          chartRef.current.applyOptions({ width: Math.floor(width), height: Math.floor(height) });
+        }
+      }
+    });
+    ro.observe(chartContainerRef.current);
+    resizeObserverRef.current = ro;
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      ro.disconnect();
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
       }
     };
-  }, [candles, chartType, showEma20, showEma50, showBollinger, showVwap]);
+  }, [candles, chartType, showEma20, showEma50, showBollinger, showVwap, timeframe]);
 
   const isPositive = stock.change >= 0;
 
